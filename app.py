@@ -103,7 +103,7 @@ def render_monthly_trend(df, unit, prefix):
     # --- 색상 테마 선택 (팀장님 옵션) ---
     color_opt = st.radio(
         "🎨 색상 테마",
-        ["옵션1", "옵션2", "옵션3", "옵션4"],
+        ["옵션1", "옵션2", "옵션3"],
         horizontal=True,
         key=f"{prefix}_theme"
     )
@@ -112,14 +112,11 @@ def render_monthly_trend(df, unit, prefix):
         # 기존 코드 컬러 (녹색, 회색, 연파랑)
         current_palette = ["#2e7d32", "#808080", "#4292c6"]
     elif color_opt == "옵션2":
-        # 업로드 사진 컬러 (진한 파랑, 회색, 연파랑)
-        current_palette = ["#1f497d", "#808080", "#4292c6"]
-    elif color_opt == "옵션3":
-        # 옵션3 수정 (주황색과 2026년 계획 색상 스왑: 스틸 그레이, 네이비, 주황)
+        # 구 옵션3 (스틸 그레이, 네이비, 주황)
         current_palette = ["#7f7f7f", "#1f77b4", "#ff7f0e"]
     else:
-        # 옵션4: 촌스럽지 않고 구분 잘 되는 4가지 추천 컬러 (뮤트 블루, 틸 그린, 샌드 옐로우, 번트 코랄)
-        current_palette = ["#457b9d", "#2a9d8f", "#e9c46a", "#e76f51"]
+        # 새로운 옵션3: 옵션2에서 2026년 색상을 2025년과 동일하게 맞춤 (스틸 그레이, 네이비, 네이비)
+        current_palette = ["#7f7f7f", "#1f77b4", "#1f77b4"]
     # ------------------------------------
 
     # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
@@ -240,7 +237,7 @@ def render_monthly_trend(df, unit, prefix):
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 우측에 단위 추가
+    # 3. 하단 데이터 박 우측에 단위 추가
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
         st.markdown("##### 🔢 월별 상세 데이터표")
