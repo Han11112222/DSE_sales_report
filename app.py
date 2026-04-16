@@ -121,7 +121,7 @@ def build_long_dict(sheets: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
 # ─────────────────────────────────────────────────────────
 # 핵심 UI 컴포넌트 : 최근 3년 동향 분석 (실적 + 계획 연동)
 # ─────────────────────────────────────────────────────────
-def three_year_trend_section(long_df: pd.DataFrame, unit_label: str):
+def three_year_trend_section(long_df: pd.DataFrame, unit_label: str, key_prefix: str = ""):
     st.markdown("### 📈 최근 3년간 용도별 실적 및 향후 계획")
 
     if long_df.empty:
@@ -135,12 +135,11 @@ def three_year_trend_section(long_df: pd.DataFrame, unit_label: str):
     st.markdown("#### ✅ 분석 기준 선택")
     c1, c2, c3 = st.columns([1, 1, 2])
     with c1:
-        sel_year = st.selectbox("기준 연도", options=years_all, index=years_all.index(default_year) if default_year in years_all else 0)
+        sel_year = st.selectbox("기준 연도", options=years_all, index=years_all.index(default_year) if default_year in years_all else 0, key=f"{key_prefix}year")
     with c2:
-        # Han형님 요청사항에 맞게 초기값을 3월로 세팅
-        sel_month = st.selectbox("실적 마감 월 (이후는 계획으로 표시)", options=list(range(1, 13)), index=2) 
+        sel_month = st.selectbox("실적 마감 월 (이후는 계획으로 표시)", options=list(range(1, 13)), index=2, key=f"{key_prefix}month") 
     with c3:
-        sel_group = st.selectbox("용도(그룹) 선택", options=GROUP_OPTIONS, index=0)
+        sel_group = st.selectbox("용도(그룹) 선택", options=GROUP_OPTIONS, index=0, key=f"{key_prefix}group")
 
     # 데이터 필터링 및 집계
     df_g = long_df[long_df["그룹"] == sel_group] if sel_group != "총량" else long_df.copy()
@@ -265,12 +264,14 @@ def main():
                     if tab_label.startswith("부피"):
                         df_long = long_dict.get("부피", pd.DataFrame())
                         unit = "천m³"
+                        prefix = "vol_"  # 부피 탭용 고유 키
                     else:
                         df_long = long_dict.get("열량", pd.DataFrame()).copy()
                         unit = "GJ"
+                        prefix = "gj_"   # 열량 탭용 고유 키
 
-                    # 새롭게 구성된 3년 트렌드 차트만 호출
-                    three_year_trend_section(df_long, unit_label=unit)
+                    # 함수 호출 시 key_prefix 전달
+                    three_year_trend_section(df_long, unit_label=unit, key_prefix=prefix)
 
 if __name__ == "__main__":
     main()
