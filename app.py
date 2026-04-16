@@ -100,7 +100,6 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
@@ -179,7 +178,7 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    # Y축 하단 여백 스케일링 최적화 유지
+    # Y축 하단 여백 스케일링 최적화 유지 및 숫자 포맷팅(tickformat/hoverformat) 수정 반영
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
@@ -188,7 +187,7 @@ def render_monthly_trend(df, unit, prefix):
         fig_line.update_layout(
             height=550, 
             xaxis=dict(dtick=1, title="월"), 
-            yaxis=dict(title=f"판매량({unit})", range=[y_min_scaled, y_max_scaled]), 
+            yaxis=dict(title=f"판매량({unit})", range=[y_min_scaled, y_max_scaled], tickformat=",.0f", hoverformat=",.0f"), 
             hovermode="x unified", 
             legend=dict(orientation="h", y=1.1),
             annotations=[unit_anno] # 꺾은선 그래프 단위 추가
@@ -197,7 +196,7 @@ def render_monthly_trend(df, unit, prefix):
         fig_line.update_layout(
             height=550, 
             xaxis=dict(dtick=1, title="월"), 
-            yaxis=dict(title=f"판매량({unit})"), 
+            yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
             hovermode="x unified", 
             legend=dict(orientation="h", y=1.1),
             annotations=[unit_anno]
@@ -205,12 +204,12 @@ def render_monthly_trend(df, unit, prefix):
         
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 막대그래프 렌더링 (그래프 내부에 단위 주석 추가)
+    # 2. 막대그래프 렌더링 (그래프 내부에 단위 주석 추가 및 숫자 포맷팅 수정 반영)
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(
         barmode='group', 
         xaxis=dict(dtick=1, title="월"), 
-        yaxis=dict(title=f"판매량({unit})"), 
+        yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
         hovermode="x unified", 
         legend=dict(orientation="h", y=1.1),
         annotations=[unit_anno] # 막대 그래프 단위 추가
@@ -254,7 +253,7 @@ def render_monthly_trend(df, unit, prefix):
         if "증감률(%)" in table.columns:
             format_dict["증감률(%)"] = "{:,.1f}%"
 
-        # [추가] 합계 행 진한 푸른색 바탕 + 흰색 글씨 적용 (막대그래프 진한 푸른색: #1f497d)
+        # 합계 행 진한 푸른색 바탕 + 흰색 글씨 유지
         styled_df = table.style.format(format_dict, na_rep="-")
         styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
         
