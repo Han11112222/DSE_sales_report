@@ -39,12 +39,12 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# [수정] 고정 색상 맵핑 딕셔너리 생성 (연도 및 계획/실적에 따라 명확히 지정)
+# [수정] 고정 색상 맵핑 (2026년 계획을 블랙으로 변경)
 LINE_COLOR_MAP = {
     "2024년 실적": "#1f77b4",  # 파란색
     "2025년 실적": "#2ca02c",  # 녹색
     "2026년 실적": "#d62728",  # 빨간색
-    "2026년 계획": "#ff7f0e"   # 오렌지색
+    "2026년 계획": "black"     # 블랙
 }
 
 USE_COL_TO_GROUP: Dict[str, str] = {
@@ -105,8 +105,6 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # [수정] 옵션 선택기 삭제 완료
-
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
@@ -133,7 +131,7 @@ def render_monthly_trend(df, unit, prefix):
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (오렌지색 점선 및 막대)
+            # 1. 2026년 계획 (점선 및 막대)
             if not y26_plan.empty:
                 c_plan = LINE_COLOR_MAP["2026년 계획"]
                 fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
@@ -146,7 +144,7 @@ def render_monthly_trend(df, unit, prefix):
                 
                 fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
                 
-            # 2. 2026년 실적 (빨간색 실선 및 막대)
+            # 2. 2026년 실적 (실선 및 막대)
             if not y26_act.empty:
                 c_act26 = LINE_COLOR_MAP["2026년 실적"]
                 fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
@@ -218,7 +216,8 @@ def render_monthly_trend(df, unit, prefix):
     # 2. 막대그래프 렌더링
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(
-        barmode='group', 
+        barmode='group',
+        bargap=0.36, # [수정] 막대그래프 가로 사이즈 약 20% 좁게 축소
         xaxis=dict(dtick=1, title="월"), 
         yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
         hovermode="x unified", 
