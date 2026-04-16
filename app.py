@@ -30,7 +30,7 @@ DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
 # 요청하신 그룹 순서
 GROUP_ORDER = ["가정용", "산업용", "업무용", "영업용", "기타"]
 
-# 2번째 사진과 동일한 스택 그래프 색상 맵핑 (Highcharts 기본 색상 느낌)
+# 2번째 사진과 동일한 스택 그래프 색상 맵핑 (형님이 주신 코드 그대로 적용)
 COLOR_MAP = {
     "가정용": "#0b5ed7",  # 진한 파랑
     "산업용": "#7cb5ec",  # 연한 하늘색
@@ -38,6 +38,9 @@ COLOR_MAP = {
     "영업용": "#e4d354",  # 노랑
     "기타": "#90ed7d"     # 연두색
 }
+
+# 막대그래프용 연도별 푸른색/회색 계열 색상 팔레트
+BAR_PALETTE = ["#0b5ed7", "#0dcaf0", "#adb5bd", "#6c757d", "#343a40"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -51,7 +54,6 @@ USE_COL_TO_GROUP: Dict[str, str] = {
 # 데이터 처리 유틸
 # ─────────────────────────────────────────────────────────
 def center_style(styler):
-    """표 숫자 가운데 정렬용 스타일"""
     styler = styler.set_properties(**{"text-align": "center"})
     styler = styler.set_table_styles([dict(selector="th", props=[("text-align", "center")])])
     return styler
@@ -70,7 +72,9 @@ def make_long(plan_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
     for label, df in [("계획", plan_df), ("실적", actual_df)]:
         for col in df.columns:
             if col in ["연", "월"]: continue
-            group = USE_COL_TO_GROUP.get(col, "기타")
+            # 기타 수치 오류 방지: 명시된 컬럼만 매핑 (소계, 합계 등 이중 계산 완벽 차단)
+            if col not in USE_COL_TO_GROUP: continue
+            group = USE_COL_TO_GROUP[col]
             base = df[["연", "월"]].copy()
             base["그룹"] = group
             base["계획/실적"] = label
@@ -101,12 +105,12 @@ def render_monthly_trend(df, unit, prefix):
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
     with c2: 
-        st.markdown("<div style='padding-top:28px;font-size:14px;color:#666;'>집계 기준: <b>연 누적 (단월)</b></div>", unsafe_allow_html=True)
+        st.markdown("<div style='padding-top:28px;font-size:14px;color:#666;'>집계 기준: <b>단월 판매량</b></div>", unsafe_allow_html=True)
 
     try:
-        sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="영업용", key=f"{prefix}sg")
+        sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
     except:
-        sel_group = st.radio("그룹 선택", options=["총량"] + GROUP_ORDER, index=GROUP_ORDER.index("영업용")+1, horizontal=True, key=f"{prefix}rd")
+        sel_group = st.radio("그룹 선택", options=["총량"] + GROUP_ORDER, index=0, horizontal=True, key=f"{prefix}rd")
 
     if not sel_years:
         st.info("연도를 하나 이상 선택해주세요.")
@@ -116,17 +120,17 @@ def render_monthly_trend(df, unit, prefix):
     
     fig_line = go.Figure()
     fig_bar = go.Figure()
-    line_colors = {2022: "#9467bd", 2023: "#8c564b", 2024: "#1f77b4", 2025: "#d62728", 2026: "#2ca02c"}
 
     table_data_list = []
 
-    for year in sorted(sel_years):
-        year_str = str(year)
-        c = line_colors.get(year, "#1f77b4")
+    for i, year in enumerate(sorted(sel_years)):
+        # 파란색/회색 계열 막대그래프 색상 순차적 적용
+        c = BAR_PALETTE[i % len(BAR_PALETTE)]
         
         y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
         
         if year == 2026:
+            # 2026년 1~3월 실적
             y_act_sub = y_act[y_act["월"] <= 3]
             y_act_grp = y_act_sub.groupby("월")["값"].sum().reset_index()
         else:
@@ -135,24 +139,27 @@ def render_monthly_trend(df, unit, prefix):
         # 꺾은선 실적 추가
         if not y_act_grp.empty:
             fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='lines+markers', 
-                                     name=f"{year}년 실적", line=dict(color=c, width=2)))
+                                     name=f"{year}년 실적", line=dict(color=c, width=2.5)))
 
-        # 바 차트 및 데이터 박스용 베이스 복사
         combined_year_data = y_act_grp.copy()
         combined_year_data["구분"] = "실적"
 
-        # 2026년 4~12월 계획량 연결 (점선)
+        # 2026년 4~12월 계획량 연결 (끊김 방지 적용)
         if year == 2026:
-            y26_act_m3 = y_act_grp[y_act_grp["월"] == 3].copy() # 끊김 방지를 위한 3월 실적 끝점 추출
             y26_plan_only = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획") & (plot_df["월"] >= 4)].groupby("월")["값"].sum().reset_index()
             
             if not y26_plan_only.empty:
-                # 3월 실적점과 4~12월 계획 데이터를 하나로 연결
-                y26_plan_line = pd.concat([y26_act_m3, y26_plan_only], ignore_index=True)
-                fig_line.add_trace(go.Scatter(x=y26_plan_line["월"], y=y26_plan_line["값"], mode='lines+markers', 
-                                         name="2026년 계획(4~12월)", line=dict(color=c, width=2, dash='dash')))
+                y26_act_m3 = y_act_grp[y_act_grp["월"] == 3].copy()
                 
-                # 바 차트 및 표 데이터용 병합
+                # 3월 실적 점과 4월 계획 점을 하나로 합쳐서 끊김 없이 연결
+                if not y26_act_m3.empty:
+                    y26_plan_line = pd.concat([y26_act_m3, y26_plan_only], ignore_index=True)
+                else:
+                    y26_plan_line = y26_plan_only
+                    
+                fig_line.add_trace(go.Scatter(x=y26_plan_line["월"], y=y26_plan_line["값"], mode='lines+markers', 
+                                         name="2026년 계획(4~12월)", line=dict(color=c, width=2.5, dash='dot')))
+                
                 y26_plan_only["구분"] = "계획"
                 combined_year_data = pd.concat([combined_year_data, y26_plan_only], ignore_index=True)
 
@@ -160,26 +167,24 @@ def render_monthly_trend(df, unit, prefix):
         if not combined_year_data.empty:
             fig_bar.add_trace(go.Bar(x=combined_year_data["월"], y=combined_year_data["값"], name=f"{year}년", marker_color=c))
             
-            # 테이블용 데이터 수집
             combined_year_data["연"] = year
             table_data_list.append(combined_year_data)
 
-    # 1. 꺾은선 그래프 출력
+    # 1. 꺾은선 그래프
     fig_line.update_layout(xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 월별 막대 그래프 출력
+    # 2. 월별 막대 그래프
     st.markdown("##### 📊 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 상세 데이터 박스 출력
+    # 3. 하단 데이터 박스 (복구 완료)
     st.markdown("##### 🔢 월별 상세 데이터표")
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
         t_df["표_컬럼"] = t_df["연"].astype(str) + "년 " + t_df["구분"]
         
-        # 26년의 경우 실적과 계획이 나뉘므로 이를 처리
         table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
         
         total_row = table.sum(numeric_only=True)
@@ -191,11 +196,11 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
 # ─────────────────────────────────────────────────────────
-# 그래프 섹션 2: 기간별 용도 누적 실적 (스택 사이즈 및 색상 조정)
+# 그래프 섹션 2: 연간 용도별 실적 판매량 누적 (스택 사이즈 조정)
 # ─────────────────────────────────────────────────────────
 def render_stacked_chart(df, unit, prefix):
     st.markdown("---")
-    st.markdown("### 🧱 연간 용도별 실적 판매량 (당월)")
+    st.markdown("### 🧱 연간 용도별 실적 판매량 누적")
     
     c1, c2 = st.columns([2, 2])
     with c1: plot_years = st.multiselect("연도 선택(스택 그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}stk_y")
@@ -225,11 +230,11 @@ def render_stacked_chart(df, unit, prefix):
         fig.add_trace(go.Scatter(x=home_line["연"], y=home_line["값"], mode='lines+markers', 
                                  name="가정용", line=dict(color="#cccccc", dash="dot", width=2)))
 
-    # 스택 바 가로 넓이 1/3 수준으로 축소
-    fig.update_traces(selector=dict(type='bar'), width=0.25)
+    # 스택 바 가로 굵기 1/3로 축소
+    fig.update_traces(selector=dict(type='bar'), width=0.15)
     
-    # 그래프 세로 높이 30% 증가 (기본 약 450px -> 600px 적용)
-    fig.update_layout(height=600, xaxis=dict(dtick=1), yaxis=dict(title=f"판매량({unit})"), legend=dict(title="그룹", orientation="v", x=1.02, y=0.8))
+    # 그래프 세로 높이 30% 연장 (약 750px)
+    fig.update_layout(height=750, xaxis=dict(dtick=1), yaxis=dict(title=f"판매량({unit})"), legend=dict(title="그룹", orientation="v", x=1.02, y=0.8))
     st.plotly_chart(fig, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────
@@ -251,6 +256,7 @@ def main():
         tabs = st.tabs([f"{k} 기준" for k in data_dict.keys()])
         for (k, df), tab in zip(data_dict.items(), tabs):
             with tab:
+                # 단위는 기존의 형님 지시사항에 따라 부피는 천m³, 열량은 GJ을 씁니다.
                 unit = "천m³" if k == "부피" else "GJ"
                 render_monthly_trend(df, unit, k)
                 render_stacked_chart(df, unit, k)
