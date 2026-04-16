@@ -39,9 +39,6 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (기본값)
-BAR_PALETTE = ["#2e7d32", "#808080", "#4292c6"]
-
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
     "산업용": "산업용",
@@ -100,7 +97,7 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # --- 색상 테마 선택 (팀장님 옵션) ---
+    # --- 색상 테마 선택 (옵션 1, 2, 3 재배열) ---
     color_opt = st.radio(
         "🎨 색상 테마",
         ["옵션1", "옵션2", "옵션3"],
@@ -109,14 +106,14 @@ def render_monthly_trend(df, unit, prefix):
     )
     
     if color_opt == "옵션1":
-        # 기존 코드 컬러 (녹색, 회색, 연파랑)
+        # 팔레트 사진 조합 (진한 녹색, 회색, 연파랑)
         current_palette = ["#2e7d32", "#808080", "#4292c6"]
     elif color_opt == "옵션2":
-        # 구 옵션3 (스틸 그레이, 네이비, 주황)
+        # 스틸 그레이/네이비 베이스 + 주황색 포인트
         current_palette = ["#7f7f7f", "#1f77b4", "#ff7f0e"]
     else:
-        # 새로운 옵션3: 옵션2에서 2026년 색상을 2025년과 동일하게 맞춤 (스틸 그레이, 네이비, 네이비)
-        current_palette = ["#7f7f7f", "#1f77b4", "#1f77b4"]
+        # 옵션 3: 스틸 그레이/네이비 베이스 + 사진 속 연파랑색(#4292c6) 포인트
+        current_palette = ["#7f7f7f", "#1f77b4", "#4292c6"]
     # ------------------------------------
 
     # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
@@ -189,7 +186,7 @@ def render_monthly_trend(df, unit, prefix):
 
                 fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-    # 범례(2024년 실적 등)와 완벽히 동일한 높이(y=1.12)에 우측 정렬로 단위 배치
+    # 범례 높이에 맞춰 우측 정렬로 단위 배치
     unit_anno = dict(
         xref="paper", yref="paper", 
         x=1.0, y=1.12, 
@@ -199,7 +196,7 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    # Y축 하단 여백 스케일링 최적화: 꺾은선 간격이 더 잘 보이도록 하단 여백 대폭 줄임 (min_y * 0.95 적용)
+    # Y축 하단 여백 스케일링 최적화
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
@@ -211,7 +208,7 @@ def render_monthly_trend(df, unit, prefix):
             yaxis=dict(title=f"판매량({unit})", range=[y_min_scaled, y_max_scaled], tickformat=",.0f", hoverformat=",.0f"), 
             hovermode="x unified", 
             legend=dict(orientation="h", y=1.1),
-            annotations=[unit_anno] # 꺾은선 그래프 단위 추가
+            annotations=[unit_anno]
         )
     else:
         fig_line.update_layout(
@@ -225,7 +222,7 @@ def render_monthly_trend(df, unit, prefix):
         
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 막대그래프 렌더링 (그래프 내부에 단위 주석 추가 및 숫자 포맷팅 수정 반영)
+    # 2. 막대그래프 렌더링
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(
         barmode='group', 
@@ -233,11 +230,11 @@ def render_monthly_trend(df, unit, prefix):
         yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
         hovermode="x unified", 
         legend=dict(orientation="h", y=1.1),
-        annotations=[unit_anno] # 막대 그래프 단위 추가
+        annotations=[unit_anno]
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박 우측에 단위 추가
+    # 3. 하단 데이터 박스
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
         st.markdown("##### 🔢 월별 상세 데이터표")
@@ -250,10 +247,7 @@ def render_monthly_trend(df, unit, prefix):
         
         if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
             table["증감량(차이)"] = table["2026년 실적"] - table["2026년 계획"]
-            
-            # 4월~12월은 실적이 없으므로 공란(NaN) 처리
             table.loc[table.index > 3, "증감량(차이)"] = np.nan
-            
             table["증감률(%)"] = np.nan
             valid_mask = (table.index <= 3) & (table["2026년 계획"] != 0)
             table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / table.loc[valid_mask, "2026년 계획"]) * 100
@@ -261,20 +255,17 @@ def render_monthly_trend(df, unit, prefix):
         total_row = table.sum(numeric_only=True)
         table.loc["합계"] = total_row
         
-        # 합계 행 증감률 재계산
         if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
             val_diff = table.loc["합계", "증감량(차이)"]
             val_plan = table.loc["합계", "2026년 계획"]
             table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
 
         table = table.reset_index()
-
         numeric_cols = [col for col in table.columns if col not in ["월", "증감률(%)"]]
         format_dict = {col: "{:,.0f}" for col in numeric_cols}
         if "증감률(%)" in table.columns:
             format_dict["증감률(%)"] = "{:,.1f}%"
 
-        # 합계 행 진한 푸른색 바탕 + 흰색 글씨 유지
         styled_df = table.style.format(format_dict, na_rep="-")
         styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
         
@@ -286,7 +277,6 @@ def render_monthly_trend(df, unit, prefix):
 # ─────────────────────────────────────────────────────────
 def main():
     st.title("📊 DSE 판매량 분석 보고")
-
     st.sidebar.header("📂 데이터 설정")
     src = st.sidebar.radio("데이터 소스", ["레포 파일 사용", "엑셀 업로드"])
     excel_bytes = None
@@ -300,7 +290,6 @@ def main():
 
     if excel_bytes:
         data_dict = load_data(excel_bytes)
-        
         tabs = st.tabs([f"{k} 기준" for k in data_dict.keys()])
         for (k, df), tab in zip(data_dict.items(), tabs):
             with tab:
