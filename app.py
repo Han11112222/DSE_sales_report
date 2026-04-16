@@ -228,14 +228,14 @@ def render_monthly_trend(df, mod_df, unit, prefix):
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 (차이/증감률 열 추가)
+    # 3. 하단 데이터 박스 (총량 선택 시에도 차이/증감률 열 추가되도록 조건 수정 완료!)
     st.markdown("##### 🔢 월별 상세 데이터표")
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
         table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
         
-        # 수정 조건 시 차이 및 증감률 컬럼 계산
-        if mod_toggle and sel_group == "산업용":
+        # 수정 조건 시 차이 및 증감률 컬럼 계산 (산업용 및 총량 모두 표기되도록 리스트 처리)
+        if mod_toggle and sel_group in ["산업용", "총량"]:
             if "2026년 계획" in table.columns and "2026년 변경 계획(변경)" in table.columns:
                 table["증감량(차이)"] = table["2026년 변경 계획(변경)"] - table["2026년 계획"]
                 table["증감률(%)"] = np.where(table["2026년 계획"] != 0, (table["증감량(차이)"] / table["2026년 계획"]) * 100, 0.0)
@@ -244,7 +244,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
         table.loc["합계"] = total_row
         
         # 합계 행 증감률 재계산
-        if mod_toggle and sel_group == "산업용":
+        if mod_toggle and sel_group in ["산업용", "총량"]:
             if "2026년 계획" in table.columns and "2026년 변경 계획(변경)" in table.columns:
                 val_diff = table.loc["합계", "증감량(차이)"]
                 val_plan = table.loc["합계", "2026년 계획"]
