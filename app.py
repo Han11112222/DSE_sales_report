@@ -39,7 +39,7 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# [수정] 2023년 실적 색상(보라색) 추가 및 나머지 고정 색상 유지
+# 고정 색상 맵핑
 LINE_COLOR_MAP = {
     "2023년 실적": "#9467bd",  # 보라색 (2022년 회색과 구분)
     "2024년 실적": "#1f77b4",  # 파란색
@@ -94,10 +94,14 @@ def load_data(excel_bytes):
     xls = pd.ExcelFile(io.BytesIO(excel_bytes), engine="openpyxl")
     sheets = {name: xls.parse(name) for name in ["계획_부피", "실적_부피", "계획_열량", "실적_열량"] if name in xls.sheet_names}
     long_dict = {}
-    if "계획_부피" in sheets and "실적_부피" in sheets:
-        long_dict["부피"] = make_long(sheets["계획_부피"], sheets["실적_부피"])
+    
+    # [수정] 열량을 먼저 딕셔너리에 담아 첫 번째 탭으로 오게 순서 변경
     if "계획_열량" in sheets and "실적_열량" in sheets:
         long_dict["열량"] = make_long(sheets["계획_열량"], sheets["실적_열량"])
+        
+    if "계획_부피" in sheets and "실적_부피" in sheets:
+        long_dict["부피"] = make_long(sheets["계획_부피"], sheets["실적_부피"])
+        
     return long_dict
 
 # ─────────────────────────────────────────────────────────
@@ -162,7 +166,6 @@ def render_monthly_trend(df, unit, prefix):
 
             if not y_act_grp.empty:
                 key_name = f"{year}년 실적"
-                # 만약 컬러맵에 없다면(예: 2022년) 회색(#808080)으로 기본 처리
                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                 
                 fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', 
