@@ -39,8 +39,8 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 푸른색, 회색, 파란색 원상복구)
-BAR_PALETTE = ["#1f497d", "#808080", "#4292c6"]
+# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 녹색, 회색, 파란색 유지)
+BAR_PALETTE = ["#2e7d32", "#808080", "#4292c6"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -100,6 +100,7 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
+    # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
@@ -178,11 +179,11 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    # Y축 하단 여백 스케일링 최적화 유지 및 숫자 포맷팅(tickformat/hoverformat) 수정 반영
+    # [수정] Y축 하단 여백 스케일링 최적화: 꺾은선 간격이 더 잘 보이도록 하단 여백을 대폭 줄임 (min_y * 0.95 적용)
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
-        y_min_scaled = min_y * 0.7 if min_y > 0 else min_y * 1.1
+        y_min_scaled = min_y * 0.95 if min_y > 0 else min_y * 1.05
         y_max_scaled = max_y * 1.05
         fig_line.update_layout(
             height=550, 
