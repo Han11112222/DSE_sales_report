@@ -100,12 +100,12 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # 상단 1. 꺾은선 그래프 우측에 단위 추가
+    # 상단 1. 꺾은선 그래프 우측에 단위 위치 미세 조정 (padding-top 값을 28px에서 80px 근처로 늘려 그래프 영역에 맞춤)
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
     with c2:
-        st.markdown(f"<div style='text-align: right; padding-top: 28px; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: right; padding-top: 80px; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
