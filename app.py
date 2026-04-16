@@ -39,8 +39,8 @@ COLOR_MAP = {
     "기타": "#90ed7d"     # 연두색
 }
 
-# 막대그래프용 연도별 푸른색 계열 색상 팔레트 (최근일수록 진해지도록 구성)
-BAR_PALETTE = ["#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c"]
+# 막대그래프용 연도별 푸른색 계열 색상 팔레트 (기존보다 더 진한 푸른색으로 조정)
+BAR_PALETTE = ["#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -72,7 +72,6 @@ def make_long(plan_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
     for label, df in [("계획", plan_df), ("실적", actual_df)]:
         for col in df.columns:
             if col in ["연", "월"]: continue
-            # 기타 수치 오류 방지: 명시된 컬럼만 매핑 (소계, 합계 등 이중 계산 완벽 차단)
             if col not in USE_COL_TO_GROUP: continue
             group = USE_COL_TO_GROUP[col]
             base = df[["연", "월"]].copy()
@@ -144,7 +143,7 @@ def render_monthly_trend(df, unit, prefix):
         combined_year_data = y_act_grp.copy()
         combined_year_data["구분"] = "실적"
 
-        # 2026년 4~12월 계획량 연결 (끊김 방지 적용)
+        # 2026년 4~12월 계획량 연결 (검정색 점선)
         if year == 2026:
             y26_plan_only = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획") & (plot_df["월"] >= 4)].groupby("월")["값"].sum().reset_index()
             
@@ -157,8 +156,9 @@ def render_monthly_trend(df, unit, prefix):
                 else:
                     y26_plan_line = y26_plan_only
                     
+                # 점선 색상을 검정색('black')으로 적용
                 fig_line.add_trace(go.Scatter(x=y26_plan_line["월"], y=y26_plan_line["값"], mode='lines+markers', 
-                                         name="2026년 계획(4~12월)", line=dict(color=c, width=2.5, dash='dot')))
+                                         name="2026년 계획(4~12월)", line=dict(color='black', width=2.5, dash='dot')))
                 
                 y26_plan_only["구분"] = "계획"
                 combined_year_data = pd.concat([combined_year_data, y26_plan_only], ignore_index=True)
@@ -170,11 +170,11 @@ def render_monthly_trend(df, unit, prefix):
             combined_year_data["연"] = year
             table_data_list.append(combined_year_data)
 
-    # 1. 꺾은선 그래프 (세로 20% 늘림)
+    # 1. 꺾은선 그래프
     fig_line.update_layout(height=550, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 월별 막대 그래프 (타이틀에 용도 추가)
+    # 2. 월별 막대 그래프
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
@@ -196,7 +196,7 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
 # ─────────────────────────────────────────────────────────
-# 그래프 섹션 2: 연간 용도별 실적 판매량 누적 (스택 사이즈 조정)
+# 그래프 섹션 2: 연간 용도별 실적 판매량 누적 (2026년 스택 완성)
 # ─────────────────────────────────────────────────────────
 def render_stacked_chart(df, unit, prefix):
     st.markdown("---")
@@ -206,7 +206,16 @@ def render_stacked_chart(df, unit, prefix):
     with c1: plot_years = st.multiselect("연도 선택(스택 그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}stk_y")
     with c2: period = st.radio("기간", ["연간", "상반기(1~6월)", "하반기(7~12월)"], horizontal=True, key=f"{prefix}stk_p")
 
-    stack_df = df[(df["연"].isin(plot_years)) & (df["계획/실적"] == "실적")]
+    # 선택한 연도의 기본 데이터 추출
+    base_df = df[df["연"].isin(plot_years)]
+    
+    # 2026년 4~12월 계획 데이터를 스택에 포함하여 완성
+    past_act = base_df[(base_df["연"] < 2026) & (base_df["계획/실적"] == "실적")]
+    y26_act = base_df[(base_df["연"] == 2026) & (base_df["계획/실적"] == "실적") & (base_df["월"] <= 3)]
+    y26_plan = base_df[(base_df["연"] == 2026) & (base_df["계획/실적"] == "계획") & (base_df["월"] >= 4)]
+    
+    stack_df = pd.concat([past_act, y26_act, y26_plan], ignore_index=True)
+
     if period == "상반기(1~6월)": stack_df = stack_df[stack_df["월"] <= 6]
     elif period == "하반기(7~12월)": stack_df = stack_df[stack_df["월"] > 6]
 
@@ -230,10 +239,7 @@ def render_stacked_chart(df, unit, prefix):
         fig.add_trace(go.Scatter(x=home_line["연"], y=home_line["값"], mode='lines+markers', 
                                  name="가정용", line=dict(color="#cccccc", dash="dot", width=2)))
 
-    # 스택 바 가로 넓이 2배로 확대
     fig.update_traces(selector=dict(type='bar'), width=0.3)
-    
-    # 그래프 세로 높이 20% 축소 (약 600px 적용)
     fig.update_layout(height=600, xaxis=dict(dtick=1), yaxis=dict(title=f"판매량({unit})"), legend=dict(title="그룹", orientation="v", x=1.02, y=0.8))
     st.plotly_chart(fig, use_container_width=True)
 
