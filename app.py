@@ -100,11 +100,10 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
+    # 우측의 '집계 기준' 텍스트를 완전히 삭제했습니다. (가로 비율 유지를 위해 c2는 빈 공간으로 둡니다)
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
-    with c2: 
-        st.markdown("<div style='padding-top:28px;font-size:14px;color:#666;'>집계 기준: <b>단월 판매량</b></div>", unsafe_allow_html=True)
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
@@ -193,7 +192,7 @@ def render_monthly_trend(df, unit, prefix):
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 (2026년 계획 대비 실적 증감 및 증감률 추가)
+    # 3. 하단 데이터 박스 (2026년 계획 대비 실적 증감 및 증감률)
     st.markdown("##### 🔢 월별 상세 데이터표")
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
