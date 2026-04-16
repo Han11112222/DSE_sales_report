@@ -100,9 +100,12 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
+    # 상단 1. 꺾은선 그래프 우측에 단위 추가
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
+    with c2:
+        st.markdown(f"<div style='text-align: right; padding-top: 28px; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
@@ -129,7 +132,7 @@ def render_monthly_trend(df, unit, prefix):
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (현재 26년 실적 컬러(c)로 점선 표시)
+            # 1. 2026년 계획 (파란색 점선 및 파란색 막대)
             if not y26_plan.empty:
                 fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
                                          name="2026년 계획", line=dict(color=c, width=2.5, dash='dot')))
@@ -141,7 +144,7 @@ def render_monthly_trend(df, unit, prefix):
                 
                 fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c))
                 
-            # 2. 2026년 실적 (검정색 실선 표시)
+            # 2. 2026년 실적 (검정색 실선 및 검정색 막대)
             if not y26_act.empty:
                 fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
                                          name="2026년 실적", line=dict(color='black', width=2.5))) # 실선으로 변경
@@ -187,12 +190,23 @@ def render_monthly_trend(df, unit, prefix):
         
     st.plotly_chart(fig_line, use_container_width=True)
 
-    st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
+    # 2. 막대그래프 우측에 단위 추가
+    c_bar_1, c_bar_2 = st.columns([3, 1])
+    with c_bar_1:
+        st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
+    with c_bar_2:
+        st.markdown(f"<div style='text-align: right; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
+
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스
-    st.markdown("##### 🔢 월별 상세 데이터표")
+    # 3. 하단 데이터 박스 우측에 단위 추가
+    c_tbl_1, c_tbl_2 = st.columns([3, 1])
+    with c_tbl_1:
+        st.markdown("##### 🔢 월별 상세 데이터표")
+    with c_tbl_2:
+        st.markdown(f"<div style='text-align: right; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
+        
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
         table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
