@@ -39,12 +39,12 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# [수정] 고정 색상 맵핑 (2026년 계획을 블랙으로 변경)
+# [수정] 2026년 계획 색상을 다시 오렌지색으로 복구
 LINE_COLOR_MAP = {
     "2024년 실적": "#1f77b4",  # 파란색
     "2025년 실적": "#2ca02c",  # 녹색
     "2026년 실적": "#d62728",  # 빨간색
-    "2026년 계획": "black"     # 블랙
+    "2026년 계획": "#ff7f0e"   # 오렌지색 복구
 }
 
 USE_COL_TO_GROUP: Dict[str, str] = {
@@ -109,16 +109,17 @@ def render_monthly_trend(df, unit, prefix):
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
 
+    # [수정] '총량' 문구를 '전체'로 변경
     try:
-        sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
+        sel_group = st.segmented_control("그룹 선택", options=["전체"] + GROUP_ORDER, selection_mode="single", default="전체", key=f"{prefix}sg")
     except:
-        sel_group = st.radio("그룹 선택", options=["총량"] + GROUP_ORDER, index=0, horizontal=True, key=f"{prefix}rd")
+        sel_group = st.radio("그룹 선택", options=["전체"] + GROUP_ORDER, index=0, horizontal=True, key=f"{prefix}rd")
 
     if not sel_years:
         st.info("연도를 하나 이상 선택해주세요.")
         return
 
-    plot_df = df[df["그룹"] == sel_group] if sel_group != "총량" else df
+    plot_df = df[df["그룹"] == sel_group] if sel_group != "전체" else df
     
     fig_line = go.Figure()
     fig_bar = go.Figure()
@@ -131,10 +132,9 @@ def render_monthly_trend(df, unit, prefix):
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (점선 및 막대)
             if not y26_plan.empty:
                 c_plan = LINE_COLOR_MAP["2026년 계획"]
-                fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
+                fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', 
                                          name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
                 line_y_vals.extend(y26_plan["값"].tolist())
                 
@@ -144,10 +144,9 @@ def render_monthly_trend(df, unit, prefix):
                 
                 fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
                 
-            # 2. 2026년 실적 (실선 및 막대)
             if not y26_act.empty:
                 c_act26 = LINE_COLOR_MAP["2026년 실적"]
-                fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
+                fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', 
                                          name="2026년 실적", line=dict(color=c_act26, width=2.5)))
                 line_y_vals.extend(y26_act["값"].tolist())
                 
@@ -158,16 +157,14 @@ def render_monthly_trend(df, unit, prefix):
                 fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
 
         else:
-            # 과거 연도 실적 (고정된 색상 사용)
             y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
             y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
 
             if not y_act_grp.empty:
                 key_name = f"{year}년 실적"
-                # 만약 선택한 연도가 2022나 2023이라면 회색 계열로 기본 처리
                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                 
-                fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='lines+markers', 
+                fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', 
                                          name=key_name, line=dict(color=c, width=2.5)))
                 line_y_vals.extend(y_act_grp["값"].tolist())
 
@@ -177,7 +174,6 @@ def render_monthly_trend(df, unit, prefix):
 
                 fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-    # 범례 높이에 맞춰 우측 정렬로 단위 배치
     unit_anno = dict(
         xref="paper", yref="paper", 
         x=1.0, y=1.12, 
@@ -187,7 +183,6 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    # Y축 하단 여백 스케일링 최적화
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
@@ -213,11 +208,10 @@ def render_monthly_trend(df, unit, prefix):
         
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 막대그래프 렌더링
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(
         barmode='group',
-        bargap=0.36, # [수정] 막대그래프 가로 사이즈 약 20% 좁게 축소
+        bargap=0.36, # 막대 가로 사이즈 좁게 유지
         xaxis=dict(dtick=1, title="월"), 
         yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
         hovermode="x unified", 
@@ -226,7 +220,6 @@ def render_monthly_trend(df, unit, prefix):
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
         st.markdown("##### 🔢 월별 상세 데이터표")
