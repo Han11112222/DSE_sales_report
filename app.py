@@ -39,13 +39,8 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# [수정] 고정 색상 맵핑 딕셔너리 생성 (연도 및 계획/실적에 따라 명확히 지정)
-LINE_COLOR_MAP = {
-    "2024년 실적": "#1f77b4",  # 파란색
-    "2025년 실적": "#2ca02c",  # 녹색
-    "2026년 실적": "#d62728",  # 빨간색
-    "2026년 계획": "#ff7f0e"   # 오렌지색
-}
+# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (기본값)
+BAR_PALETTE = ["#2e7d32", "#808080", "#4292c6"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -105,8 +100,26 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # [수정] 옵션 선택기 삭제 완료
+    # --- 색상 테마 선택 (옵션 1, 2, 3 재배열) ---
+    color_opt = st.radio(
+        "🎨 색상 테마",
+        ["옵션1", "옵션2", "옵션3"],
+        horizontal=True,
+        key=f"{prefix}_theme"
+    )
+    
+    if color_opt == "옵션1":
+        # 팔레트 사진 조합 (진한 녹색, 회색, 연파랑)
+        current_palette = ["#2e7d32", "#808080", "#4292c6"]
+    elif color_opt == "옵션2":
+        # 스틸 그레이/네이비 베이스 + 주황색 포인트
+        current_palette = ["#7f7f7f", "#1f77b4", "#ff7f0e"]
+    else:
+        # 옵션 3: 2024년 실적(첫번째)을 그린(#2ca02c)으로 변경
+        current_palette = ["#2ca02c", "#1f77b4", "#ff7f0e"]
+    # ------------------------------------
 
+    # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
@@ -128,53 +141,50 @@ def render_monthly_trend(df, unit, prefix):
     table_data_list = []
     line_y_vals = []
 
-    for year in sorted(sel_years):
+    for i, year in enumerate(sorted(sel_years)):
+        # 선택된 테마 배열에서 색상 가져오기
+        c = current_palette[i % len(current_palette)]
+        
         if year == 2026:
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (오렌지색 점선 및 막대)
+            # 1. 2026년 계획 (테마 색상 점선 및 막대)
             if not y26_plan.empty:
-                c_plan = LINE_COLOR_MAP["2026년 계획"]
                 fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
-                                         name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                                         name="2026년 계획", line=dict(color=c, width=2.5, dash='dot')))
                 line_y_vals.extend(y26_plan["값"].tolist())
                 
                 y26_plan_tb = y26_plan.copy()
                 y26_plan_tb["표_컬럼"] = "2026년 계획"
                 table_data_list.append(y26_plan_tb)
                 
-                fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
+                fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c))
                 
-            # 2. 2026년 실적 (빨간색 실선 및 막대)
+            # 2. 2026년 실적 (검정색 실선 및 막대 유지)
             if not y26_act.empty:
-                c_act26 = LINE_COLOR_MAP["2026년 실적"]
                 fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
-                                         name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                                         name="2026년 실적", line=dict(color='black', width=2.5)))
                 line_y_vals.extend(y26_act["값"].tolist())
                 
                 y26_act_tb = y26_act.copy()
                 y26_act_tb["표_컬럼"] = "2026년 실적"
                 table_data_list.append(y26_act_tb)
                 
-                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
+                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color='black'))
 
         else:
-            # 과거 연도 실적 (고정된 색상 사용)
+            # 과거 연도는 기존처럼 실적만 표시 (실선)
             y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
             y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
 
             if not y_act_grp.empty:
-                key_name = f"{year}년 실적"
-                # 만약 선택한 연도가 2022나 2023이라면 회색 계열로 기본 처리
-                c = LINE_COLOR_MAP.get(key_name, "#808080")
-                
                 fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='lines+markers', 
-                                         name=key_name, line=dict(color=c, width=2.5)))
+                                         name=f"{year}년 실적", line=dict(color=c, width=2.5)))
                 line_y_vals.extend(y_act_grp["값"].tolist())
 
                 y_act_tb = y_act_grp.copy()
-                y_act_tb["표_컬럼"] = key_name
+                y_act_tb["표_컬럼"] = f"{year}년 실적"
                 table_data_list.append(y_act_tb)
 
                 fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
