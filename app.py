@@ -39,12 +39,13 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# [수정] 2026년 계획 색상을 다시 오렌지색으로 복구
+# [수정] 2023년 실적 색상(보라색) 추가 및 나머지 고정 색상 유지
 LINE_COLOR_MAP = {
+    "2023년 실적": "#9467bd",  # 보라색 (2022년 회색과 구분)
     "2024년 실적": "#1f77b4",  # 파란색
     "2025년 실적": "#2ca02c",  # 녹색
     "2026년 실적": "#d62728",  # 빨간색
-    "2026년 계획": "#ff7f0e"   # 오렌지색 복구
+    "2026년 계획": "#ff7f0e"   # 오렌지색
 }
 
 USE_COL_TO_GROUP: Dict[str, str] = {
@@ -109,7 +110,6 @@ def render_monthly_trend(df, unit, prefix):
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
 
-    # [수정] '총량' 문구를 '전체'로 변경
     try:
         sel_group = st.segmented_control("그룹 선택", options=["전체"] + GROUP_ORDER, selection_mode="single", default="전체", key=f"{prefix}sg")
     except:
@@ -162,6 +162,7 @@ def render_monthly_trend(df, unit, prefix):
 
             if not y_act_grp.empty:
                 key_name = f"{year}년 실적"
+                # 만약 컬러맵에 없다면(예: 2022년) 회색(#808080)으로 기본 처리
                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                 
                 fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', 
@@ -211,7 +212,7 @@ def render_monthly_trend(df, unit, prefix):
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(
         barmode='group',
-        bargap=0.36, # 막대 가로 사이즈 좁게 유지
+        bargap=0.36,
         xaxis=dict(dtick=1, title="월"), 
         yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
         hovermode="x unified", 
