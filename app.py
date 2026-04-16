@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 import matplotlib as mpl
-import plotly.graph_objects as go
+import plotly.express as px
 import streamlit as st
 
 # ─────────────────────────────────────────────────────────
@@ -25,33 +25,45 @@ st.set_page_config(page_title="판매량 현황 분석", layout="wide")
 
 DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
 
-# 엑셀 헤더 → 분석 그룹 매핑 (판매량용)
+# 엑셀 헤더 → 분석 그룹 매핑 (요청하신 대로 '기타'로 통합)
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용",
     "개별난방용": "가정용",
     "중앙난방용": "가정용",
     "자가열전용": "가정용",
+    
     "일반용": "영업용",
+    
     "업무난방용": "업무용",
     "냉방용": "업무용",
     "주한미군": "업무용",
+    
     "산업용": "산업용",
-    "수송용(CNG)": "수송용",
-    "수송용(BIO)": "수송용",
-    "열병합용": "열병합",
-    "열병합용1": "열병합",
-    "열병합용2": "열병합",
-    "연료전지용": "연료전지",
-    "열전용설비용": "열전용설비용",
+    
+    "수송용(CNG)": "기타",
+    "수송용(BIO)": "기타",
+    
+    "열병합용": "기타",
+    "열병합용1": "기타",
+    "열병합용2": "기타",
+    
+    "연료전지용": "기타",
+    "열전용설비용": "기타",
 }
 
 GROUP_OPTIONS: List[str] = [
-    "총량", "가정용", "영업용", "업무용", "산업용", "수송용", "열병합", "연료전지", "열전용설비용"
+    "총량", "가정용", "영업용", "업무용", "산업용", "기타"
 ]
 
 # ─────────────────────────────────────────────────────────
 # 공통 데이터 유틸
 # ─────────────────────────────────────────────────────────
+def center_style(styler):
+    """모든 표 숫자 가운데 정렬용 공통 스타일."""
+    styler = styler.set_properties(**{"text-align": "center"})
+    styler = styler.set_table_styles([dict(selector="th", props=[("text-align", "center")])])
+    return styler
+
 def _clean_base(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     if "Unnamed: 0" in out.columns:
@@ -62,10 +74,7 @@ def _clean_base(df: pd.DataFrame) -> pd.DataFrame:
 
 def keyword_group(col: str) -> Optional[str]:
     c = str(col)
-    if "열병합" in c: return "열병합"
-    if "연료전지" in c: return "연료전지"
-    if "수송용" in c: return "수송용"
-    if "열전용" in c: return "열전용설비용"
+    if any(k in c for k in ["수송용", "열병합", "연료전지", "열전용"]): return "기타"
     if c in ["산업용"]: return "산업용"
     if c in ["일반용"]: return "영업용"
     if any(k in c for k in ["취사용", "난방용", "자가열"]): return "가정용"
@@ -99,6 +108,10 @@ def make_long(plan_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
     long_df = long_df.dropna(subset=["연", "월"])
     long_df["연"] = long_df["연"].astype(int)
     long_df["월"] = long_df["월"].astype(int)
+    
+    # ★ 2022년 ~ 2026년 데이터만 필터링
+    long_df = long_df[long_df["연"].isin([2022, 2023, 2024, 2025, 2026])]
+    
     return long_df
 
 def load_all_sheets(excel_bytes: bytes) -> Dict[str, pd.DataFrame]:
@@ -119,105 +132,92 @@ def build_long_dict(sheets: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
     return long_dict
 
 # ─────────────────────────────────────────────────────────
-# 핵심 UI 컴포넌트 : 최근 3년 동향 분석 (실적 + 계획 연동)
+# 기존 화면 복구 : 월별 추이 그래프 (사진과 동일한 UI)
 # ─────────────────────────────────────────────────────────
-def three_year_trend_section(long_df: pd.DataFrame, unit_label: str, key_prefix: str = ""):
-    st.markdown("### 📈 최근 3년간 용도별 실적 및 향후 계획")
-
+def monthly_trend_section(long_df: pd.DataFrame, unit_label: str, key_prefix: str = ""):
     if long_df.empty:
-        st.info("데이터가 없습니다.")
+        st.info("2022~2026년 데이터가 없습니다.")
         return
 
-    # 기준 선택 UI
-    years_all = sorted(long_df["연"].dropna().unique().tolist())
+    years_all = sorted(long_df["연"].unique().tolist())
     default_year = years_all[-1] if years_all else 2026
 
-    st.markdown("#### ✅ 분석 기준 선택")
-    c1, c2, c3 = st.columns([1, 1, 2])
+    # 1. 상단 기준 선택기 (사진과 동일한 구성)
+    c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
     with c1:
-        sel_year = st.selectbox("기준 연도", options=years_all, index=years_all.index(default_year) if default_year in years_all else 0, key=f"{key_prefix}year")
+        sel_year = st.selectbox("기준 연도", options=years_all, index=years_all.index(default_year), key=f"{key_prefix}year")
     with c2:
-        sel_month = st.selectbox("실적 마감 월 (이후는 계획으로 표시)", options=list(range(1, 13)), index=2, key=f"{key_prefix}month") 
+        sel_month = st.selectbox("기준 월", options=list(range(1, 13)), index=11, key=f"{key_prefix}month") # 12월 기본
     with c3:
-        sel_group = st.selectbox("용도(그룹) 선택", options=GROUP_OPTIONS, index=0, key=f"{key_prefix}group")
-
-    # 데이터 필터링 및 집계
-    df_g = long_df[long_df["그룹"] == sel_group] if sel_group != "총량" else long_df.copy()
-    grp_df = df_g.groupby(["연", "월", "계획/실적"], as_index=False)["값"].sum()
-
-    y3 = sel_year - 2
-    y2 = sel_year - 1
-    y1 = sel_year
-
-    y3_df = grp_df[(grp_df["연"] == y3) & (grp_df["계획/실적"] == "실적")].sort_values("월")
-    y2_df = grp_df[(grp_df["연"] == y2) & (grp_df["계획/실적"] == "실적")].sort_values("월")
+        st.markdown("<div style='padding-top:28px;font-size:14px;color:#666;'>집계 기준: <b>연 누적</b></div>", unsafe_allow_html=True)
     
-    # 당해 연도 실적 (1월 ~ 선택 월)
-    y1_act = grp_df[(grp_df["연"] == y1) & (grp_df["계획/실적"] == "실적") & (grp_df["월"] <= sel_month)].sort_values("월")
-    # 당해 연도 계획 (선택 월 초과 ~ 12월)
-    y1_plan_sub = grp_df[(grp_df["연"] == y1) & (grp_df["계획/실적"] == "계획") & (grp_df["월"] > sel_month)].sort_values("월")
+    st.markdown(f"<div style='margin-top:-4px;font-size:13px;color:#666;'>선택 기준: <b>{sel_year}년 {sel_month}월 · 연 누적</b></div>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # 차트 그리기
-    fig = go.Figure()
+    # 2. 연도 다중 선택 (그래프용)
+    default_plot_years = [y for y in [2024, 2025, 2026] if y in years_all]
+    sel_years = st.multiselect("연도 선택(그래프)", options=years_all, default=default_plot_years, key=f"{key_prefix}years")
 
-    # 과거 2년 실적 (연한 회색 계열)
-    if not y3_df.empty:
-        fig.add_trace(go.Scatter(x=y3_df["월"], y=y3_df["값"], mode='lines+markers', name=f"{y3}년 실적", line=dict(color='#CBD5E0', width=2)))
-    if not y2_df.empty:
-        fig.add_trace(go.Scatter(x=y2_df["월"], y=y2_df["값"], mode='lines+markers', name=f"{y2}년 실적", line=dict(color='#A0AEC0', width=2)))
+    # 3. 그룹 선택 (버튼형)
+    try:
+        sel_group = st.segmented_control("그룹 선택", GROUP_OPTIONS, selection_mode="single", default="영업용", key=f"{key_prefix}group")
+    except Exception:
+        sel_group = st.radio("그룹 선택", GROUP_OPTIONS, index=GROUP_OPTIONS.index("영업용"), horizontal=True, key=f"{key_prefix}group_radio")
 
-    # 당해 연도 실적 (진한 파란색)
-    if not y1_act.empty:
-        fig.add_trace(go.Scatter(x=y1_act["월"], y=y1_act["값"], mode='lines+markers', name=f"{y1}년 실적(1~{sel_month}월)", line=dict(color='#2B6CB0', width=3.5)))
+    if not sel_years:
+        st.info("표시할 연도를 한 개 이상 선택해 주세요.")
+        return
 
-    # 당해 연도 계획 (점선, 실적의 마지막 포인트부터 자연스럽게 이어지도록 처리)
-    if not y1_plan_sub.empty:
-        last_act = y1_act[y1_act["월"] == sel_month]
-        if not last_act.empty:
-            y1_plan_conn = pd.concat([last_act, y1_plan_sub])
-        else:
-            y1_plan_conn = y1_plan_sub
-            
-        fig.add_trace(go.Scatter(x=y1_plan_conn["월"], y=y1_plan_conn["값"], mode='lines+markers', name=f"{y1}년 계획({sel_month+1}~12월)", line=dict(color='#2B6CB0', width=3.5, dash='dot')))
+    # 데이터 필터링
+    base = long_df[long_df["연"].isin(sel_years)].copy()
+    base = base[base["월"] <= sel_month]
 
+    if sel_group != "총량":
+        base = base[base["그룹"] == sel_group]
+
+    plot_df = base.groupby(["연", "월", "계획/실적"], as_index=False)["값"].sum().sort_values(["연", "월", "계획/실적"])
+
+    if plot_df.empty:
+        st.info("선택 조건에 해당하는 데이터가 없습니다.")
+        return
+
+    # 그래프 라벨 생성 (사진의 범례와 일치하도록)
+    group_label = sel_group if sel_group != "총량" else "총량"
+    plot_df["라벨"] = plot_df["연"].astype(str) + f"년 · {group_label}"
+
+    # 4. 라인 그래프
+    fig = px.line(
+        plot_df,
+        x="월",
+        y="값",
+        color="라벨",
+        line_dash="계획/실적",
+        category_orders={"계획/실적": ["실적", "계획"]},
+        line_dash_map={"실적": "solid", "계획": "dash"},
+        markers=True,
+    )
     fig.update_layout(
         xaxis=dict(dtick=1, title="월"),
         yaxis=dict(title=f"판매량 ({unit_label})"),
-        margin=dict(l=10, r=10, t=50, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=10, r=10, t=60, b=10),
+        legend=dict(title="연도 / 구분", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         hovermode="x unified"
     )
-
     st.plotly_chart(fig, use_container_width=True)
 
-    # ─────────────────────────────────────────────────────────
-    # 하단 데이터 표 구성
-    # ─────────────────────────────────────────────────────────
-    st.markdown("##### 🔢 월별 상세 데이터 (실적 및 계획)")
-    months = list(range(1, 13))
-    table_data = {"월": months}
-
-    def get_vals(df, m_list):
-        v_dict = dict(zip(df["월"], df["값"]))
-        return [v_dict.get(m, 0.0) for m in m_list]
-
-    if not y3_df.empty: table_data[f"{y3}년 실적"] = get_vals(y3_df, months)
-    if not y2_df.empty: table_data[f"{y2}년 실적"] = get_vals(y2_df, months)
-
-    # 당해 연도는 실적(1~N월) + 계획(N+1~12월) 데이터를 결합하여 표기
-    y1_combined = pd.concat([y1_act, y1_plan_sub])
-    if not y1_combined.empty:
-        table_data[f"{y1}년 (실적+계획)"] = get_vals(y1_combined, months)
-
-    df_table = pd.DataFrame(table_data)
+    # 5. 하단 데이터 표
+    st.markdown("##### 🔢 월별 상세 데이터표")
+    plot_df["표_컬럼"] = plot_df["연"].astype(str) + "년 " + plot_df["계획/실적"]
+    table = plot_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
     
-    # 보기 편하게 가로로 변환 (월이 컬럼이 되도록)
-    df_t = df_table.set_index("월").T
-    df_t.columns = [f"{m}월" for m in df_t.columns]
-    df_t["합계"] = df_t.sum(axis=1)
+    total_row = table.sum(numeric_only=True)
+    table.loc["합계"] = total_row
+    table = table.reset_index()
+    
+    numeric_cols = [c for c in table.columns if c != "월"]
+    styled = center_style(table.style.format({col: "{:,.0f}" for col in numeric_cols}))
+    st.dataframe(styled, use_container_width=True, hide_index=True)
 
-    styled = df_t.style.format("{:,.0f}").set_properties(**{'text-align': 'center'})
-    st.dataframe(styled, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────
 # 메인 앱 구동부
@@ -270,8 +270,8 @@ def main():
                         unit = "GJ"
                         prefix = "gj_"   # 열량 탭용 고유 키
 
-                    # 함수 호출 시 key_prefix 전달
-                    three_year_trend_section(df_long, unit_label=unit, key_prefix=prefix)
+                    # 기존 그래프 섹션 호출
+                    monthly_trend_section(df_long, unit_label=unit, key_prefix=prefix)
 
 if __name__ == "__main__":
     main()
