@@ -39,8 +39,8 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (모던 코퍼레이트 컬러 적용)
-BAR_PALETTE = ["#7f7f7f", "#ff7f0e", "#1f77b4"]
+# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (기본값)
+BAR_PALETTE = ["#2e7d32", "#808080", "#4292c6"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -100,6 +100,25 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
+    # --- 색상 테마 선택 (팀장님 옵션) ---
+    color_opt = st.radio(
+        "🎨 색상 테마",
+        ["옵션1 : 지금 코드에 있는 컬러", "옵션2 : 업로드한 사진 컬러", "옵션3 : 너가추천하는 컬러"],
+        horizontal=True,
+        key=f"{prefix}_theme"
+    )
+    
+    if "옵션1" in color_opt:
+        # 지금 코드에 있는 컬러 (녹색, 회색, 연파랑)
+        current_palette = ["#2e7d32", "#808080", "#4292c6"]
+    elif "옵션2" in color_opt:
+        # 업로드한 이전 앱 사진 컬러 (진한 파랑, 회색, 연파랑)
+        current_palette = ["#1f497d", "#808080", "#4292c6"]
+    else:
+        # 미미 추천 컬러 (스틸 그레이, 주황, 네이비)
+        current_palette = ["#7f7f7f", "#ff7f0e", "#1f77b4"]
+    # ------------------------------------
+
     # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
     c1, c2 = st.columns([3, 1])
     with c1: 
@@ -123,13 +142,14 @@ def render_monthly_trend(df, unit, prefix):
     line_y_vals = []
 
     for i, year in enumerate(sorted(sel_years)):
-        c = BAR_PALETTE[i % len(BAR_PALETTE)]
+        # 선택된 테마 배열에서 색상 가져오기
+        c = current_palette[i % len(current_palette)]
         
         if year == 2026:
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (네이비 점선 및 막대)
+            # 1. 2026년 계획 (파란색 계열 점선 및 막대)
             if not y26_plan.empty:
                 fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
                                          name="2026년 계획", line=dict(color=c, width=2.5, dash='dot')))
@@ -141,17 +161,17 @@ def render_monthly_trend(df, unit, prefix):
                 
                 fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c))
                 
-            # 2. 2026년 실적 (녹색 실선 및 막대)
+            # 2. 2026년 실적 (검정색 실선 및 막대 유지)
             if not y26_act.empty:
                 fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
-                                         name="2026년 실적", line=dict(color='#2ca02c', width=2.5)))
+                                         name="2026년 실적", line=dict(color='black', width=2.5)))
                 line_y_vals.extend(y26_act["값"].tolist())
                 
                 y26_act_tb = y26_act.copy()
                 y26_act_tb["표_컬럼"] = "2026년 실적"
                 table_data_list.append(y26_act_tb)
                 
-                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color='#2ca02c'))
+                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color='black'))
 
         else:
             # 과거 연도는 기존처럼 실적만 표시 (실선)
@@ -179,7 +199,7 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    # [수정] Y축 하단 여백 스케일링 최적화: 꺾은선 간격이 더 잘 보이도록 하단 여백을 대폭 줄임 (min_y * 0.95 적용)
+    # Y축 하단 여백 스케일링 최적화: 꺾은선 간격이 더 잘 보이도록 하단 여백 대폭 줄임 (min_y * 0.95 적용)
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
