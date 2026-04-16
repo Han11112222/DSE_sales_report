@@ -105,8 +105,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
-    with c2: 
-        st.markdown("<div style='padding-top:28px;font-size:14px;color:#666;'>집계 기준: <b>단월 판매량</b></div>", unsafe_allow_html=True)
+    # '집계 기준: 단월 판매량' 문구 삭제 완료 (c2 영역을 비워두어 기존 레이아웃 가로 비율은 그대로 유지)
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
@@ -127,7 +126,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
     fig_bar = go.Figure()
 
     table_data_list = []
-    line_y_vals = []  # 꺾은선 그래프 Y축 동적 스케일링을 위한 리스트
+    line_y_vals = []
 
     for i, year in enumerate(sorted(sel_years)):
         c = BAR_PALETTE[i % len(BAR_PALETTE)]
@@ -173,7 +172,6 @@ def render_monthly_trend(df, mod_df, unit, prefix):
             combined_year_data["연"] = year
             table_data_list.append(combined_year_data)
 
-        # 2026년 수정 물량 (토글 ON)
         if year == 2026 and mod_toggle and mod_df is not None:
             c_mod = "#e11d48"
             plot_mod_df = mod_df[mod_df["그룹"] == sel_group] if sel_group != "총량" else mod_df
@@ -206,7 +204,6 @@ def render_monthly_trend(df, mod_df, unit, prefix):
                 combined_mod_data["연"] = "2026년 변경"
                 table_data_list.append(combined_mod_data)
 
-    # Y축 하단 여백 최적화 로직 (14k일 경우 약 10k 수준으로 스케일링)
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
@@ -228,13 +225,11 @@ def render_monthly_trend(df, mod_df, unit, prefix):
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 (총량 선택 시에도 차이/증감률 열 추가되도록 조건 수정 완료!)
     st.markdown("##### 🔢 월별 상세 데이터표")
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
         table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
         
-        # 수정 조건 시 차이 및 증감률 컬럼 계산 (산업용 및 총량 모두 표기되도록 리스트 처리)
         if mod_toggle and sel_group in ["산업용", "총량"]:
             if "2026년 계획" in table.columns and "2026년 변경 계획(변경)" in table.columns:
                 table["증감량(차이)"] = table["2026년 변경 계획(변경)"] - table["2026년 계획"]
@@ -243,7 +238,6 @@ def render_monthly_trend(df, mod_df, unit, prefix):
         total_row = table.sum(numeric_only=True)
         table.loc["합계"] = total_row
         
-        # 합계 행 증감률 재계산
         if mod_toggle and sel_group in ["산업용", "총량"]:
             if "2026년 계획" in table.columns and "2026년 변경 계획(변경)" in table.columns:
                 val_diff = table.loc["합계", "증감량(차이)"]
@@ -252,7 +246,6 @@ def render_monthly_trend(df, mod_df, unit, prefix):
 
         table = table.reset_index()
 
-        # 데이터 포맷팅 분리 적용
         numeric_cols = [col for col in table.columns if col not in ["월", "증감률(%)"]]
         format_dict = {col: "{:,.0f}" for col in numeric_cols}
         if "증감률(%)" in table.columns:
