@@ -127,6 +127,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
     fig_bar = go.Figure()
 
     table_data_list = []
+    line_y_vals = []  # 꺾은선 그래프 Y축 동적 스케일링을 위한 리스트
 
     for i, year in enumerate(sorted(sel_years)):
         c = BAR_PALETTE[i % len(BAR_PALETTE)]
@@ -142,6 +143,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
         if not y_act_grp.empty:
             fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='lines+markers', 
                                      name=f"{year}년 실적", line=dict(color=c, width=2.5)))
+            line_y_vals.extend(y_act_grp["값"].tolist())
 
         combined_year_data = y_act_grp.copy()
         combined_year_data["구분"] = "실적"
@@ -159,6 +161,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
                     
                 fig_line.add_trace(go.Scatter(x=y26_plan_line["월"], y=y26_plan_line["값"], mode='lines+markers', 
                                          name="2026년 계획(4~12월)", line=dict(color='black', width=2.5, dash='dot')))
+                line_y_vals.extend(y26_plan_line["값"].tolist())
                 
                 y26_plan_only["구분"] = "계획"
                 combined_year_data = pd.concat([combined_year_data, y26_plan_only], ignore_index=True)
@@ -187,6 +190,7 @@ def render_monthly_trend(df, mod_df, unit, prefix):
                     
                 fig_line.add_trace(go.Scatter(x=y26_plan_line_mod["월"], y=y26_plan_line_mod["값"], mode='lines+markers', 
                                          name="2026년 변경 계획(4~12월)", line=dict(color=c_mod, width=2.5, dash='dash')))
+                line_y_vals.extend(y26_plan_line_mod["값"].tolist())
                 
             combined_mod_data = y_act_mod.copy()
             if not combined_mod_data.empty:
@@ -202,7 +206,22 @@ def render_monthly_trend(df, mod_df, unit, prefix):
                 combined_mod_data["연"] = "2026년 변경"
                 table_data_list.append(combined_mod_data)
 
-    fig_line.update_layout(height=550, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
+    # Y축 하단 여백 최적화 로직 (14k일 경우 약 10k 수준으로 스케일링)
+    if line_y_vals:
+        min_y = min(line_y_vals)
+        max_y = max(line_y_vals)
+        y_min_scaled = min_y * 0.7 if min_y > 0 else min_y * 1.1
+        y_max_scaled = max_y * 1.05
+        fig_line.update_layout(
+            height=550, 
+            xaxis=dict(dtick=1, title="월"), 
+            yaxis=dict(title=f"판매량({unit})", range=[y_min_scaled, y_max_scaled]), 
+            hovermode="x unified", 
+            legend=dict(orientation="h", y=1.1)
+        )
+    else:
+        fig_line.update_layout(height=550, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
+        
     st.plotly_chart(fig_line, use_container_width=True)
 
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
@@ -304,7 +323,6 @@ def render_stacked_chart(df, mod_df, unit, prefix, mod_toggle):
         fig.add_trace(go.Scatter(x=home_line["연_표시"], y=home_line["값"], mode='lines+markers', 
                                  name="가정용", line=dict(color="#cccccc", dash="dot", width=2)))
 
-    # 스택 바 가로 굵기 2배로 확대 & 세로 높이 20% 축소 반영
     fig.update_traces(selector=dict(type='bar'), width=0.35)
     fig.update_layout(height=550, xaxis=dict(title="연도"), yaxis=dict(title=f"판매량({unit})"), legend=dict(title="그룹", orientation="v", x=1.02, y=0.8))
     st.plotly_chart(fig, use_container_width=True)
@@ -313,7 +331,6 @@ def render_stacked_chart(df, mod_df, unit, prefix, mod_toggle):
 # 메인 실행
 # ─────────────────────────────────────────────────────────
 def main():
-    # 최상단 타이틀 변경 반영
     st.title("📊 DSE 판매량 분석 보고")
 
     st.sidebar.header("📂 데이터 설정")
