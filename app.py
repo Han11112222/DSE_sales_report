@@ -39,7 +39,7 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 푸른색, 회색, 파란색)
+# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 푸른색, 회색, 파란색 원상복구)
 BAR_PALETTE = ["#1f497d", "#808080", "#4292c6"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
@@ -169,7 +169,7 @@ def render_monthly_trend(df, unit, prefix):
 
                 fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-    # [수정] 범례(2024년 실적 등)와 완벽히 동일한 높이(y=1.12)에 우측 정렬로 단위 배치
+    # 범례(2024년 실적 등)와 완벽히 동일한 높이(y=1.12)에 우측 정렬로 단위 배치
     unit_anno = dict(
         xref="paper", yref="paper", 
         x=1.0, y=1.12, 
@@ -217,7 +217,7 @@ def render_monthly_trend(df, unit, prefix):
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 우측에 단위 추가 (표는 그래프 박스가 아니므로 HTML 유지)
+    # 3. 하단 데이터 박스 우측에 단위 추가
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
         st.markdown("##### 🔢 월별 상세 데이터표")
@@ -241,7 +241,7 @@ def render_monthly_trend(df, unit, prefix):
         total_row = table.sum(numeric_only=True)
         table.loc["합계"] = total_row
         
-        # 합계 행 증감률 재계산 (합계의 차이 역시 1~3월 누적값 기준)
+        # 합계 행 증감률 재계산
         if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
             val_diff = table.loc["합계", "증감량(차이)"]
             val_plan = table.loc["합계", "2026년 계획"]
@@ -254,8 +254,11 @@ def render_monthly_trend(df, unit, prefix):
         if "증감률(%)" in table.columns:
             format_dict["증감률(%)"] = "{:,.1f}%"
 
-        # na_rep="-"를 사용하여 NaN 값(4~12월)을 하이픈(-)으로 표시
-        styled = center_style(table.style.format(format_dict, na_rep="-"))
+        # [추가] 합계 행 진한 푸른색 바탕 + 흰색 글씨 적용 (막대그래프 진한 푸른색: #1f497d)
+        styled_df = table.style.format(format_dict, na_rep="-")
+        styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
+        
+        styled = center_style(styled_df)
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
 # ─────────────────────────────────────────────────────────
