@@ -30,7 +30,7 @@ DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
 # 요청하신 그룹 순서
 GROUP_ORDER = ["가정용", "산업용", "업무용", "영업용", "기타"]
 
-# 2번째 사진과 동일한 스택 그래프 색상 맵핑 (형님이 주신 코드 그대로 적용)
+# 2번째 사진과 동일한 스택 그래프 색상 맵핑 (Highcharts 기본 색상 느낌)
 COLOR_MAP = {
     "가정용": "#0b5ed7",  # 진한 파랑
     "산업용": "#7cb5ec",  # 연한 하늘색
@@ -39,8 +39,8 @@ COLOR_MAP = {
     "기타": "#90ed7d"     # 연두색
 }
 
-# 막대그래프용 연도별 푸른색/회색 계열 색상 팔레트
-BAR_PALETTE = ["#0b5ed7", "#0dcaf0", "#adb5bd", "#6c757d", "#343a40"]
+# 막대그래프용 연도별 푸른색 계열 색상 팔레트 (최근일수록 진해지도록 구성)
+BAR_PALETTE = ["#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -124,7 +124,7 @@ def render_monthly_trend(df, unit, prefix):
     table_data_list = []
 
     for i, year in enumerate(sorted(sel_years)):
-        # 파란색/회색 계열 막대그래프 색상 순차적 적용
+        # 파란색 계열 막대그래프 색상 순차적 적용
         c = BAR_PALETTE[i % len(BAR_PALETTE)]
         
         y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
@@ -170,16 +170,16 @@ def render_monthly_trend(df, unit, prefix):
             combined_year_data["연"] = year
             table_data_list.append(combined_year_data)
 
-    # 1. 꺾은선 그래프
-    fig_line.update_layout(xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
+    # 1. 꺾은선 그래프 (세로 20% 늘림)
+    fig_line.update_layout(height=550, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 월별 막대 그래프
-    st.markdown("##### 📊 연도별 동월 비교 (막대그래프)")
+    # 2. 월별 막대 그래프 (타이틀에 용도 추가)
+    st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 (복구 완료)
+    # 3. 하단 데이터 박스
     st.markdown("##### 🔢 월별 상세 데이터표")
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
@@ -230,11 +230,11 @@ def render_stacked_chart(df, unit, prefix):
         fig.add_trace(go.Scatter(x=home_line["연"], y=home_line["값"], mode='lines+markers', 
                                  name="가정용", line=dict(color="#cccccc", dash="dot", width=2)))
 
-    # 스택 바 가로 굵기 1/3로 축소
-    fig.update_traces(selector=dict(type='bar'), width=0.15)
+    # 스택 바 가로 넓이 2배로 확대
+    fig.update_traces(selector=dict(type='bar'), width=0.3)
     
-    # 그래프 세로 높이 30% 연장 (약 750px)
-    fig.update_layout(height=750, xaxis=dict(dtick=1), yaxis=dict(title=f"판매량({unit})"), legend=dict(title="그룹", orientation="v", x=1.02, y=0.8))
+    # 그래프 세로 높이 20% 축소 (약 600px 적용)
+    fig.update_layout(height=600, xaxis=dict(dtick=1), yaxis=dict(title=f"판매량({unit})"), legend=dict(title="그룹", orientation="v", x=1.02, y=0.8))
     st.plotly_chart(fig, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────
@@ -256,7 +256,6 @@ def main():
         tabs = st.tabs([f"{k} 기준" for k in data_dict.keys()])
         for (k, df), tab in zip(data_dict.items(), tabs):
             with tab:
-                # 단위는 기존의 형님 지시사항에 따라 부피는 천m³, 열량은 GJ을 씁니다.
                 unit = "천m³" if k == "부피" else "GJ"
                 render_monthly_trend(df, unit, k)
                 render_stacked_chart(df, unit, k)
