@@ -23,33 +23,26 @@ def set_korean_font():
             pass
 
 set_korean_font()
+# 타이틀 변경 요청 반영
 st.set_page_config(page_title="DSE 판매량 분석 보고", layout="wide")
 
 DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
+MODIFIED_SALES_XLSX = "판매량(계획_실적)_수정.xlsx"
 
 # 요청하신 그룹 순서
 GROUP_ORDER = ["가정용", "산업용", "업무용", "영업용", "기타"]
 
-# 차분하고 안정감 있는 색상으로 스택 컬러 맵핑 (유지)
+# 차분하고 안정감 있는 색상으로 스택 컬러 변경
 COLOR_MAP = {
-    "가정용": "#4c72b0",
-    "산업용": "#9ebcda",
-    "업무용": "#e07a5f",
-    "영업용": "#e6c253",
-    "기타": "#8cce8b"
+    "가정용": "#4c72b0",  # 차분한 진파랑
+    "산업용": "#9ebcda",  # 차분한 하늘색
+    "업무용": "#e07a5f",  # 차분한 핑크/다홍
+    "영업용": "#e6c253",  # 차분한 샌드 옐로우
+    "기타": "#8cce8b"     # 차분한 연두색
 }
 
-# 막대그래프용 연도별 푸른색 계열 색상 팔레트
-BAR_PALETTE = ["#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
-
-# 꺾은선 그래프용 연도별 구분을 위한 색상 팔레트
-LINE_COLORS = {
-    2022: "#9467bd",  # 보라색
-    2023: "#8c564b",  # 갈색
-    2024: "#ff7f0e",  # 주황색
-    2025: "#d62728",  # 빨간색
-    2026: "#2ca02c"   # 초록색 (계획 실선용)
-}
+# 막대그래프용 연도별 색상 팔레트 (연파란색, 진한 회색, 진한 푸른색 순으로 차분하게 변경)
+BAR_PALETTE = ["#8db4e2", "#595959", "#1f497d"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -106,7 +99,7 @@ def load_data(excel_bytes):
 # ─────────────────────────────────────────────────────────
 # 그래프 섹션 1: 연간 추이 그래프 (꺾은선 + 막대 + 데이터 박스)
 # ─────────────────────────────────────────────────────────
-def render_monthly_trend(df, unit, prefix):
+def render_monthly_trend(df, mod_df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
     c1, c2 = st.columns([3, 1])
@@ -118,9 +111,13 @@ def render_monthly_trend(df, unit, prefix):
     except:
         sel_group = st.radio("그룹 선택", options=["총량"] + GROUP_ORDER, index=0, horizontal=True, key=f"{prefix}rd")
 
+    mod_toggle = False
+    if mod_df is not None:
+        mod_toggle = st.toggle("🚀 산업용 물량 수정 (2026년 4~12월 변경사항 표기)", value=False, key=f"{prefix}mod_toggle")
+
     if not sel_years:
         st.info("연도를 하나 이상 선택해주세요.")
-        return
+        return mod_toggle
 
     plot_df = df[df["그룹"] == sel_group] if sel_group != "총량" else df
     
@@ -131,55 +128,82 @@ def render_monthly_trend(df, unit, prefix):
     line_y_vals = []
 
     for i, year in enumerate(sorted(sel_years)):
-        c_bar = BAR_PALETTE[i % len(BAR_PALETTE)]
-        c_line = LINE_COLORS.get(year, "#1f77b4")
+        c = BAR_PALETTE[i % len(BAR_PALETTE)]
+        
+        y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
         
         if year == 2026:
-            # 2026년은 1~12월 계획(실선) & 1~3월 실적(점선) 으로 처리
-            y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
-            y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
-            
-            # 1. 2026년 계획 (꺾은선은 고유색 실선, 막대는 푸른색 계열)
-            if not y26_plan.empty:
-                fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
-                                         name="2026년 계획", line=dict(color=c_line, width=2.5)))
-                line_y_vals.extend(y26_plan["값"].tolist())
-                
-                y26_plan_tb = y26_plan.copy()
-                y26_plan_tb["표_컬럼"] = "2026년 계획"
-                table_data_list.append(y26_plan_tb)
-                
-                fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_bar))
-                
-            # 2. 2026년 실적 (검정색 점선 및 검정색 막대)
-            if not y26_act.empty:
-                fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
-                                         name="2026년 실적", line=dict(color='black', width=2.5, dash='dot')))
-                line_y_vals.extend(y26_act["값"].tolist())
-                
-                y26_act_tb = y26_act.copy()
-                y26_act_tb["표_컬럼"] = "2026년 실적"
-                table_data_list.append(y26_act_tb)
-                
-                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color='black'))
-
+            y_act_sub = y_act[y_act["월"] <= 3]
+            y_act_grp = y_act_sub.groupby("월")["값"].sum().reset_index()
         else:
-            # 과거 연도는 기존처럼 실적만 표시
-            y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
             y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
 
-            if not y_act_grp.empty:
-                fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='lines+markers', 
-                                         name=f"{year}년 실적", line=dict(color=c_line, width=2.5)))
-                line_y_vals.extend(y_act_grp["값"].tolist())
+        if not y_act_grp.empty:
+            fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='lines+markers', 
+                                     name=f"{year}년 실적", line=dict(color=c, width=2.5)))
+            line_y_vals.extend(y_act_grp["값"].tolist())
 
-                y_act_tb = y_act_grp.copy()
-                y_act_tb["표_컬럼"] = f"{year}년 실적"
-                table_data_list.append(y_act_tb)
+        combined_year_data = y_act_grp.copy()
+        combined_year_data["구분"] = "실적"
 
-                fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c_bar))
+        if year == 2026:
+            y26_plan_only = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획") & (plot_df["월"] >= 4)].groupby("월")["값"].sum().reset_index()
+            
+            if not y26_plan_only.empty:
+                y26_act_m3 = y_act_grp[y_act_grp["월"] == 3].copy()
+                
+                if not y26_act_m3.empty:
+                    y26_plan_line = pd.concat([y26_act_m3, y26_plan_only], ignore_index=True)
+                else:
+                    y26_plan_line = y26_plan_only
+                    
+                fig_line.add_trace(go.Scatter(x=y26_plan_line["월"], y=y26_plan_line["값"], mode='lines+markers', 
+                                         name="2026년 계획(4~12월)", line=dict(color='black', width=2.5, dash='dot')))
+                line_y_vals.extend(y26_plan_line["값"].tolist())
+                
+                y26_plan_only["구분"] = "계획"
+                combined_year_data = pd.concat([combined_year_data, y26_plan_only], ignore_index=True)
 
-    # Y축 하단 여백 최적화 로직
+        if not combined_year_data.empty:
+            fig_bar.add_trace(go.Bar(x=combined_year_data["월"], y=combined_year_data["값"], name=f"{year}년", marker_color=c))
+            
+            combined_year_data["표_컬럼"] = str(year) + "년 " + combined_year_data["구분"]
+            combined_year_data["연"] = year
+            table_data_list.append(combined_year_data)
+
+        # 2026년 수정 물량 (토글 ON)
+        if year == 2026 and mod_toggle and mod_df is not None:
+            c_mod = "#e11d48"
+            plot_mod_df = mod_df[mod_df["그룹"] == sel_group] if sel_group != "총량" else mod_df
+            
+            y_act_mod = plot_mod_df[(plot_mod_df["연"] == 2026) & (plot_mod_df["계획/실적"] == "실적") & (plot_mod_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
+            y_plan_mod = plot_mod_df[(plot_mod_df["연"] == 2026) & (plot_mod_df["계획/실적"] == "계획") & (plot_mod_df["월"] >= 4)].groupby("월")["값"].sum().reset_index()
+            
+            if not y_plan_mod.empty:
+                y26_act_m3_mod = y_act_mod[y_act_mod["월"] == 3].copy()
+                if not y26_act_m3_mod.empty:
+                    y26_plan_line_mod = pd.concat([y26_act_m3_mod, y_plan_mod], ignore_index=True)
+                else:
+                    y26_plan_line_mod = y_plan_mod
+                    
+                fig_line.add_trace(go.Scatter(x=y26_plan_line_mod["월"], y=y26_plan_line_mod["값"], mode='lines+markers', 
+                                         name="2026년 변경 계획(4~12월)", line=dict(color=c_mod, width=2.5, dash='dash')))
+                line_y_vals.extend(y26_plan_line_mod["값"].tolist())
+                
+            combined_mod_data = y_act_mod.copy()
+            if not combined_mod_data.empty:
+                combined_mod_data["구분"] = "실적"
+            if not y_plan_mod.empty:
+                y_plan_mod_copy = y_plan_mod.copy()
+                y_plan_mod_copy["구분"] = "계획(변경)"
+                combined_mod_data = pd.concat([combined_mod_data, y_plan_mod_copy], ignore_index=True)
+                
+            if not combined_mod_data.empty:
+                fig_bar.add_trace(go.Bar(x=combined_mod_data["월"], y=combined_mod_data["값"], name="2026년 변경", marker_color=c_mod))
+                combined_mod_data["표_컬럼"] = "2026년 변경 " + combined_mod_data["구분"]
+                combined_mod_data["연"] = "2026년 변경"
+                table_data_list.append(combined_mod_data)
+
     if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
@@ -201,47 +225,45 @@ def render_monthly_trend(df, unit, prefix):
     fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 (4~12월 증감량 공란 처리)
+    # 3. 하단 데이터 박스 (차이/증감률 열 추가)
     st.markdown("##### 🔢 월별 상세 데이터표")
     if table_data_list:
         t_df = pd.concat(table_data_list, ignore_index=True)
         table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
         
-        # 2026년 계획과 실적이 모두 있을 경우 차이와 비율 계산
-        if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
-            table["증감량(차이)"] = table["2026년 실적"] - table["2026년 계획"]
-            
-            # 4월~12월은 실적이 없으므로 공란(NaN) 처리
-            table.loc[table.index > 3, "증감량(차이)"] = np.nan
-            
-            table["증감률(%)"] = np.nan
-            valid_mask = (table.index <= 3) & (table["2026년 계획"] != 0)
-            table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / table.loc[valid_mask, "2026년 계획"]) * 100
+        # 수정 조건 시 차이 및 증감률 컬럼 계산
+        if mod_toggle and sel_group in ["산업용", "총량"]:
+            if "2026년 계획" in table.columns and "2026년 변경 계획(변경)" in table.columns:
+                table["증감량(차이)"] = table["2026년 변경 계획(변경)"] - table["2026년 계획"]
+                table["증감률(%)"] = np.where(table["2026년 계획"] != 0, (table["증감량(차이)"] / table["2026년 계획"]) * 100, 0.0)
 
         total_row = table.sum(numeric_only=True)
         table.loc["합계"] = total_row
         
-        # 합계 행 증감률 재계산 (합계의 차이 역시 1~3월 누적값)
-        if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
-            val_diff = table.loc["합계", "증감량(차이)"]
-            val_plan = table.loc["합계", "2026년 계획"]
-            table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
+        # 합계 행 증감률 재계산
+        if mod_toggle and sel_group in ["산업용", "총량"]:
+            if "2026년 계획" in table.columns and "2026년 변경 계획(변경)" in table.columns:
+                val_diff = table.loc["합계", "증감량(차이)"]
+                val_plan = table.loc["합계", "2026년 계획"]
+                table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else 0.0
 
         table = table.reset_index()
 
+        # 데이터 포맷팅 분리 적용
         numeric_cols = [col for col in table.columns if col not in ["월", "증감률(%)"]]
         format_dict = {col: "{:,.0f}" for col in numeric_cols}
         if "증감률(%)" in table.columns:
             format_dict["증감률(%)"] = "{:,.1f}%"
 
-        # na_rep="-"를 사용하여 NaN 값(4~12월)을 하이픈(-)으로 깔끔하게 표시
-        styled = center_style(table.style.format(format_dict, na_rep="-"))
+        styled = center_style(table.style.format(format_dict))
         st.dataframe(styled, use_container_width=True, hide_index=True)
+
+    return mod_toggle
 
 # ─────────────────────────────────────────────────────────
 # 그래프 섹션 2: 연간 용도별 실적 판매량 누적
 # ─────────────────────────────────────────────────────────
-def render_stacked_chart(df, unit, prefix):
+def render_stacked_chart(df, mod_df, unit, prefix, mod_toggle):
     st.markdown("---")
     st.markdown("### 🧱 연간 용도별 실적 판매량 누적")
     
@@ -255,6 +277,16 @@ def render_stacked_chart(df, unit, prefix):
     y26_plan = base_df[(base_df["연"] == 2026) & (base_df["계획/실적"] == "계획") & (base_df["월"] >= 4)]
     
     stack_list = [past_act, y26_act, y26_plan]
+    
+    if mod_toggle and 2026 in plot_years and mod_df is not None:
+        y26_act_mod = mod_df[(mod_df["연"] == 2026) & (mod_df["계획/실적"] == "실적") & (mod_df["월"] <= 3)].copy()
+        y26_plan_mod = mod_df[(mod_df["연"] == 2026) & (mod_df["계획/실적"] == "계획") & (mod_df["월"] >= 4)].copy()
+        
+        y26_act_mod["연"] = "2026년 변경"
+        y26_plan_mod["연"] = "2026년 변경"
+        
+        stack_list.extend([y26_act_mod, y26_plan_mod])
+        
     stack_df = pd.concat(stack_list, ignore_index=True)
 
     if period == "상반기(1~6월)": stack_df = stack_df[stack_df["월"] <= 6]
@@ -267,6 +299,9 @@ def render_stacked_chart(df, unit, prefix):
     grp_data["그룹"] = pd.Categorical(grp_data["그룹"], categories=GROUP_ORDER, ordered=True)
     
     year_order = [f"{y}년" for y in sorted(plot_years)]
+    if mod_toggle and 2026 in plot_years:
+        year_order.append("2026년 변경")
+        
     grp_data["연_표시"] = pd.Categorical(grp_data["연_표시"], categories=year_order, ordered=True)
     grp_data = grp_data.sort_values(["연_표시", "그룹"])
 
@@ -298,23 +333,33 @@ def main():
     st.sidebar.header("📂 데이터 설정")
     src = st.sidebar.radio("데이터 소스", ["레포 파일 사용", "엑셀 업로드"])
     excel_bytes = None
+    mod_bytes = None
     
     if src == "엑셀 업로드":
         up = st.sidebar.file_uploader("판매량(기본) 엑셀 파일 업로드", type="xlsx")
         if up: excel_bytes = up.getvalue()
+        
+        up_mod = st.sidebar.file_uploader("판매량(수정) 엑셀 파일 업로드 (선택)", type="xlsx")
+        if up_mod: mod_bytes = up_mod.getvalue()
     else:
         p = Path(__file__).parent / DEFAULT_SALES_XLSX
         if p.exists(): excel_bytes = p.read_bytes()
+        
+        p_mod = Path(__file__).parent / MODIFIED_SALES_XLSX
+        if p_mod.exists(): mod_bytes = p_mod.read_bytes()
 
     if excel_bytes:
         data_dict = load_data(excel_bytes)
+        mod_dict = load_data(mod_bytes) if mod_bytes else {}
         
         tabs = st.tabs([f"{k} 기준" for k in data_dict.keys()])
         for (k, df), tab in zip(data_dict.items(), tabs):
             with tab:
                 unit = "천m³" if k == "부피" else "GJ"
-                render_monthly_trend(df, unit, k)
-                render_stacked_chart(df, unit, k)
+                mod_df = mod_dict.get(k, None)
+                
+                mod_toggle = render_monthly_trend(df, mod_df, unit, k)
+                render_stacked_chart(df, mod_df, unit, k, mod_toggle)
     else:
         st.warning("데이터 파일을 로드할 수 없습니다.")
 
