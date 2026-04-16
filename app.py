@@ -39,7 +39,7 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 푸른색, 회색, 파란색 원상복구)
+# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 푸른색, 회색, 파란색)
 BAR_PALETTE = ["#1f497d", "#808080", "#4292c6"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
@@ -100,12 +100,10 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # 상단 1. 꺾은선 그래프 우측에 단위 위치 미세 조정 (padding-top 값을 28px에서 80px 근처로 늘려 그래프 영역에 맞춤)
+    # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
-    with c2:
-        st.markdown(f"<div style='text-align: right; padding-top: 80px; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["총량"] + GROUP_ORDER, selection_mode="single", default="총량", key=f"{prefix}sg")
@@ -125,7 +123,6 @@ def render_monthly_trend(df, unit, prefix):
     line_y_vals = []
 
     for i, year in enumerate(sorted(sel_years)):
-        # 꺾은선과 막대그래프의 색상을 동일하게 매칭 (진한 푸른색, 회색, 파란색 등)
         c = BAR_PALETTE[i % len(BAR_PALETTE)]
         
         if year == 2026:
@@ -147,7 +144,7 @@ def render_monthly_trend(df, unit, prefix):
             # 2. 2026년 실적 (검정색 실선 및 검정색 막대)
             if not y26_act.empty:
                 fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
-                                         name="2026년 실적", line=dict(color='black', width=2.5))) # 실선으로 변경
+                                         name="2026년 실적", line=dict(color='black', width=2.5)))
                 line_y_vals.extend(y26_act["값"].tolist())
                 
                 y26_act_tb = y26_act.copy()
@@ -172,6 +169,16 @@ def render_monthly_trend(df, unit, prefix):
 
                 fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
+    # [수정] 범례(2024년 실적 등)와 완벽히 동일한 높이(y=1.12)에 우측 정렬로 단위 배치
+    unit_anno = dict(
+        xref="paper", yref="paper", 
+        x=1.0, y=1.12, 
+        xanchor="right", yanchor="bottom", 
+        text=f"(단위: {unit})", 
+        font=dict(size=13, color="#555"), 
+        showarrow=False
+    )
+
     # Y축 하단 여백 스케일링 최적화 유지
     if line_y_vals:
         min_y = min(line_y_vals)
@@ -183,24 +190,34 @@ def render_monthly_trend(df, unit, prefix):
             xaxis=dict(dtick=1, title="월"), 
             yaxis=dict(title=f"판매량({unit})", range=[y_min_scaled, y_max_scaled]), 
             hovermode="x unified", 
-            legend=dict(orientation="h", y=1.1)
+            legend=dict(orientation="h", y=1.1),
+            annotations=[unit_anno] # 꺾은선 그래프 단위 추가
         )
     else:
-        fig_line.update_layout(height=550, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
+        fig_line.update_layout(
+            height=550, 
+            xaxis=dict(dtick=1, title="월"), 
+            yaxis=dict(title=f"판매량({unit})"), 
+            hovermode="x unified", 
+            legend=dict(orientation="h", y=1.1),
+            annotations=[unit_anno]
+        )
         
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # 2. 막대그래프 우측에 단위 추가
-    c_bar_1, c_bar_2 = st.columns([3, 1])
-    with c_bar_1:
-        st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
-    with c_bar_2:
-        st.markdown(f"<div style='text-align: right; font-size: 13px; color: #555;'><b>(단위: {unit})</b></div>", unsafe_allow_html=True)
-
-    fig_bar.update_layout(barmode='group', xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})"), hovermode="x unified", legend=dict(orientation="h", y=1.1))
+    # 2. 막대그래프 렌더링 (그래프 내부에 단위 주석 추가)
+    st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
+    fig_bar.update_layout(
+        barmode='group', 
+        xaxis=dict(dtick=1, title="월"), 
+        yaxis=dict(title=f"판매량({unit})"), 
+        hovermode="x unified", 
+        legend=dict(orientation="h", y=1.1),
+        annotations=[unit_anno] # 막대 그래프 단위 추가
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # 3. 하단 데이터 박스 우측에 단위 추가
+    # 3. 하단 데이터 박스 우측에 단위 추가 (표는 그래프 박스가 아니므로 HTML 유지)
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
         st.markdown("##### 🔢 월별 상세 데이터표")
