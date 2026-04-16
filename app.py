@@ -115,8 +115,8 @@ def render_monthly_trend(df, unit, prefix):
         # 스틸 그레이/네이비 베이스 + 주황색 포인트
         current_palette = ["#7f7f7f", "#1f77b4", "#ff7f0e"]
     else:
-        # 옵션 3: (회색, 파란색, 파란색) 베이스에서 2026년 계획(3번째 색상)을 오렌지색(#ff7f0e)으로 변경
-        current_palette = ["#7f7f7f", "#1f77b4", "#ff7f0e"]
+        # 옵션 3: 2024년 실적(첫번째)을 그린(#2ca02c)으로 변경
+        current_palette = ["#2ca02c", "#1f77b4", "#ff7f0e"]
     # ------------------------------------
 
     # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
