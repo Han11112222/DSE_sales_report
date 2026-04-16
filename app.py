@@ -39,8 +39,8 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (진한 녹색, 회색, 파란색 유지)
-BAR_PALETTE = ["#2e7d32", "#808080", "#4292c6"]
+# 막대그래프 및 꺾은선(실적)용 연도별 색상 팔레트 (모던 코퍼레이트 컬러 적용)
+BAR_PALETTE = ["#7f7f7f", "#ff7f0e", "#1f77b4"]
 
 USE_COL_TO_GROUP: Dict[str, str] = {
     "취사용": "가정용", "개별난방용": "가정용", "중앙난방용": "가정용", "자가열전용": "가정용",
@@ -129,7 +129,7 @@ def render_monthly_trend(df, unit, prefix):
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (파란색 점선 및 파란색 막대)
+            # 1. 2026년 계획 (네이비 점선 및 막대)
             if not y26_plan.empty:
                 fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
                                          name="2026년 계획", line=dict(color=c, width=2.5, dash='dot')))
@@ -141,17 +141,17 @@ def render_monthly_trend(df, unit, prefix):
                 
                 fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c))
                 
-            # 2. 2026년 실적 (검정색 실선 및 검정색 막대)
+            # 2. 2026년 실적 (녹색 실선 및 막대)
             if not y26_act.empty:
                 fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='lines+markers', 
-                                         name="2026년 실적", line=dict(color='black', width=2.5)))
+                                         name="2026년 실적", line=dict(color='#2ca02c', width=2.5)))
                 line_y_vals.extend(y26_act["값"].tolist())
                 
                 y26_act_tb = y26_act.copy()
                 y26_act_tb["표_컬럼"] = "2026년 실적"
                 table_data_list.append(y26_act_tb)
                 
-                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color='black'))
+                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color='#2ca02c'))
 
         else:
             # 과거 연도는 기존처럼 실적만 표시 (실선)
