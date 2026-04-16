@@ -103,20 +103,23 @@ def render_monthly_trend(df, unit, prefix):
     # --- 색상 테마 선택 (팀장님 옵션) ---
     color_opt = st.radio(
         "🎨 색상 테마",
-        ["옵션1 : 지금 코드에 있는 컬러", "옵션2 : 업로드한 사진 컬러", "옵션3 : 너가추천하는 컬러"],
+        ["옵션1", "옵션2", "옵션3", "옵션4"],
         horizontal=True,
         key=f"{prefix}_theme"
     )
     
-    if "옵션1" in color_opt:
-        # 지금 코드에 있는 컬러 (녹색, 회색, 연파랑)
+    if color_opt == "옵션1":
+        # 기존 코드 컬러 (녹색, 회색, 연파랑)
         current_palette = ["#2e7d32", "#808080", "#4292c6"]
-    elif "옵션2" in color_opt:
-        # 업로드한 이전 앱 사진 컬러 (진한 파랑, 회색, 연파랑)
+    elif color_opt == "옵션2":
+        # 업로드 사진 컬러 (진한 파랑, 회색, 연파랑)
         current_palette = ["#1f497d", "#808080", "#4292c6"]
+    elif color_opt == "옵션3":
+        # 옵션3 수정 (주황색과 2026년 계획 색상 스왑: 스틸 그레이, 네이비, 주황)
+        current_palette = ["#7f7f7f", "#1f77b4", "#ff7f0e"]
     else:
-        # 미미 추천 컬러 (스틸 그레이, 주황, 네이비)
-        current_palette = ["#7f7f7f", "#ff7f0e", "#1f77b4"]
+        # 옵션4: 촌스럽지 않고 구분 잘 되는 4가지 추천 컬러 (뮤트 블루, 틸 그린, 샌드 옐로우, 번트 코랄)
+        current_palette = ["#457b9d", "#2a9d8f", "#e9c46a", "#e76f51"]
     # ------------------------------------
 
     # 텍스트로 띄우던 단위 위치 삭제 (그래프 내부로 이동)
@@ -149,7 +152,7 @@ def render_monthly_trend(df, unit, prefix):
             y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
             y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            # 1. 2026년 계획 (파란색 계열 점선 및 막대)
+            # 1. 2026년 계획 (테마 색상 점선 및 막대)
             if not y26_plan.empty:
                 fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='lines+markers', 
                                          name="2026년 계획", line=dict(color=c, width=2.5, dash='dot')))
