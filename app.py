@@ -263,7 +263,7 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # 보고서 일괄 출력 뷰어 (자동 PDF 인쇄창 호출 및 좌우 레이아웃 추가)
+    # 보고서 일괄 출력 뷰어
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
@@ -277,9 +277,11 @@ def render_monthly_trend(df, unit, prefix):
     with chk_col3:
         prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
 
-    # 버튼 텍스트 변경: 미리보기
     if st.button("미리보기", key=f"{prefix}_preview_btn", type="primary"):
+        # [핵심] 출력 시 불필요한 상단 영역을 가리기 위한 기준 마커 삽입
+        st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
         st.markdown("---")
+        
         # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
             st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 50px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
@@ -407,14 +409,50 @@ def render_monthly_trend(df, unit, prefix):
             
         # ---------------------------------------------------------
         # [핵심 수정] 미리보기 렌더링 후 가장 하단에 네이티브 인쇄 버튼 삽입
+        # 버튼을 누르면 마커 위쪽의 모든 요소(사이드바, 제목 등)를 임시로 숨기고 인쇄창을 띄웁니다.
         # ---------------------------------------------------------
         components.html(
             """
             <div style="display: flex; justify-content: center; margin-top: 20px;">
-                <button onclick="window.parent.print()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;">
+                <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;">
                     🖨️ PDF 저장하기
                 </button>
             </div>
+            <script>
+            function printPreview() {
+                var doc = window.parent.document;
+                var marker = doc.getElementById('preview-marker');
+                var hiddenElements = [];
+                
+                // 마커 위쪽(기존 그래프 등)을 모두 찾아 숨김
+                if (marker) {
+                    var container = marker.closest('[data-testid="stElementContainer"]') || marker.closest('.element-container') || marker.parentNode;
+                    var sibling = container.previousElementSibling;
+                    while (sibling) {
+                        hiddenElements.push({el: sibling, orig: sibling.style.cssText || ''});
+                        sibling.style.setProperty('display', 'none', 'important');
+                        sibling = sibling.previousElementSibling;
+                    }
+                }
+
+                // 사이드바, 메인 타이틀, 탭 메뉴 등 최상위 UI 숨김
+                var extras = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
+                extras.forEach(el => {
+                    hiddenElements.push({el: el, orig: el.style.cssText || ''});
+                    el.style.setProperty('display', 'none', 'important');
+                });
+
+                // PDF 인쇄 창 호출
+                window.parent.print();
+
+                // 인쇄 창이 닫히거나 취소되면 1.5초 후 화면 원래대로 복구
+                setTimeout(() => {
+                    hiddenElements.forEach(item => {
+                        item.el.style.cssText = item.orig;
+                    });
+                }, 1500);
+            }
+            </script>
             """,
             height=80
         )
