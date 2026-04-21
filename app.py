@@ -8,6 +8,7 @@ import matplotlib as mpl
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components  # PDF 자동 인쇄 창을 띄우기 위한 라이브러리 추가
 
 # ─────────────────────────────────────────────────────────
 # 기본 설정
@@ -30,7 +31,7 @@ DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
 # 요청하신 그룹 순서
 GROUP_ORDER = ["가정용", "산업용", "업무용", "영업용", "기타"]
 
-# 차분하고 안정감 있는 색상으로 스택 컬러 맵핑 (유지)
+# 차분하고 안정감 있는 색상으로 스택 컬러 맵핑
 COLOR_MAP = {
     "가정용": "#4c72b0",
     "산업용": "#9ebcda",
@@ -95,7 +96,7 @@ def load_data(excel_bytes):
     sheets = {name: xls.parse(name) for name in ["계획_부피", "실적_부피", "계획_열량", "실적_열량"] if name in xls.sheet_names}
     long_dict = {}
     
-    # [수정] 열량을 먼저 딕셔너리에 담아 첫 번째 탭으로 오게 순서 변경
+    # 열량을 먼저 딕셔너리에 담아 첫 번째 탭으로 오게 순서 변경
     if "계획_열량" in sheets and "실적_열량" in sheets:
         long_dict["열량"] = make_long(sheets["계획_열량"], sheets["실적_열량"])
         
@@ -262,11 +263,11 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # [추가됨] 보고서 일괄 출력 기능 (가장 하단)
+    # [수정됨] 보고서 일괄 출력 기능 (자동 PDF 인쇄창 호출 포함)
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
-    st.caption("출력할 항목을 체크하고 버튼을 누르면, 모든 그룹의 데이터가 순서대로 나열됩니다. (브라우저 인쇄 `Ctrl+P`를 활용하여 PDF로 저장하세요.)")
+    st.caption("항목을 체크하고 버튼을 누르면 데이터가 나열된 후 **자동으로 PDF 저장 창**이 열립니다.")
 
     chk_col1, chk_col2, chk_col3 = st.columns(3)
     with chk_col1:
@@ -276,13 +277,12 @@ def render_monthly_trend(df, unit, prefix):
     with chk_col3:
         prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
 
-    if st.button("선택 항목 일괄 렌더링", key=f"{prefix}_prt_btn", type="primary"):
+    if st.button("보고서 화면에 펼치고 PDF 만들기", key=f"{prefix}_prt_btn", type="primary"):
         st.markdown("---")
         # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
             st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 50px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
-            # 출력용 데이터 필터링
             p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
 
             p_fig_line = go.Figure()
@@ -290,7 +290,6 @@ def render_monthly_trend(df, unit, prefix):
             p_table_list = []
             p_line_vals = []
 
-            # 선택된 연도별로 출력용 그래프/표 데이터 생성 (위의 로직과 동일하게 안전하게 분리 적용)
             for year in sorted(sel_years):
                 if year == 2026:
                     y26_plan = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
@@ -328,7 +327,6 @@ def render_monthly_trend(df, unit, prefix):
                         p_table_list.append(y_act_tb)
                         p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-            # 체크박스 선택 여부에 따라 화면에 출력
             if prt_line:
                 if p_line_vals:
                     min_y, max_y = min(p_line_vals), max(p_line_vals)
@@ -372,13 +370,26 @@ def render_monthly_trend(df, unit, prefix):
                     format_dict["증감률(%)"] = "{:,.1f}%"
 
                 styled_df = p_table.style.format(format_dict, na_rep="-")
-                # 출력용 표는 흑백/회색 톤으로 심플하게 강조 처리
                 styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row['월'] == '합계' else '' for _ in row], axis=1)
                 
                 st.markdown(f"**■ [{print_grp}] 월별 상세 데이터표**")
                 st.dataframe(center_style(styled_df), use_container_width=True, hide_index=True)
 
             st.markdown("<br><br>", unsafe_allow_html=True)
+            
+        # ---------------------------------------------------------
+        # [추가 포인트] 그래프가 모두 그려진 후 1.5초 뒤에 자동으로 인쇄 창 호출
+        # ---------------------------------------------------------
+        components.html(
+            """
+            <script>
+            setTimeout(function() {
+                window.parent.print();
+            }, 1500);
+            </script>
+            """,
+            height=0
+        )
 
 # ─────────────────────────────────────────────────────────
 # 메인 실행
