@@ -263,7 +263,7 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # [수정됨] 보고서 일괄 출력 기능 (자동 PDF 인쇄창 호출 포함)
+    # 보고서 일괄 출력 뷰어 (자동 PDF 인쇄창 호출 및 좌우 레이아웃 추가)
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
@@ -277,7 +277,8 @@ def render_monthly_trend(df, unit, prefix):
     with chk_col3:
         prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
 
-    if st.button("보고서 화면에 펼치고 PDF 만들기", key=f"{prefix}_prt_btn", type="primary"):
+    # 버튼 텍스트 변경: PDF 저장하기
+    if st.button("PDF 저장하기", key=f"{prefix}_prt_btn", type="primary"):
         st.markdown("---")
         # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
@@ -327,23 +328,52 @@ def render_monthly_trend(df, unit, prefix):
                         p_table_list.append(y_act_tb)
                         p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-            if prt_line:
-                if p_line_vals:
-                    min_y, max_y = min(p_line_vals), max(p_line_vals)
-                    y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                    y_max_s = max_y * 1.05
-                    p_fig_line.update_layout(height=500, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
-                else:
-                    p_fig_line.update_layout(height=500, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+            # -----------------------------------------------------
+            # [수정] 꺾은선, 막대 그래프 모두 선택 시 좌우로 나란히 배치
+            # -----------------------------------------------------
+            if prt_line and prt_bar:
+                col_left, col_right = st.columns(2)
                 
-                st.markdown(f"**■ [{print_grp}] 연간 추이 그래프**")
-                st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
+                with col_left:
+                    if p_line_vals:
+                        min_y, max_y = min(p_line_vals), max(p_line_vals)
+                        y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
+                        y_max_s = max_y * 1.05
+                        # 나란히 배치되므로 높이를 450으로 약간 조절하여 비율을 맞춤
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                    else:
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                    
+                    st.markdown(f"**■ [{print_grp}] 연간 추이 그래프**")
+                    st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
 
-            if prt_bar:
-                p_fig_bar.update_layout(barmode='group', bargap=0.36, height=500, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
-                st.markdown(f"**■ [{print_grp}] 연도별 동월 비교 그래프**")
-                st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
+                with col_right:
+                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                    st.markdown(f"**■ [{print_grp}] 연도별 동월 비교 그래프**")
+                    st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
 
+            else:
+                # 둘 중 하나만 선택했을 때는 기존처럼 전체 화면 너비 사용
+                if prt_line:
+                    if p_line_vals:
+                        min_y, max_y = min(p_line_vals), max(p_line_vals)
+                        y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
+                        y_max_s = max_y * 1.05
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                    else:
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                    
+                    st.markdown(f"**■ [{print_grp}] 연간 추이 그래프**")
+                    st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_{prefix}_{print_grp}")
+
+                if prt_bar:
+                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                    st.markdown(f"**■ [{print_grp}] 연도별 동월 비교 그래프**")
+                    st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_{prefix}_{print_grp}")
+
+            # -----------------------------------------------------
+            # 표 렌더링 (그래프 아래에 전체 너비로)
+            # -----------------------------------------------------
             if prt_tbl and p_table_list:
                 t_df = pd.concat(p_table_list, ignore_index=True)
                 p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
@@ -377,9 +407,7 @@ def render_monthly_trend(df, unit, prefix):
 
             st.markdown("<br><br>", unsafe_allow_html=True)
             
-        # ---------------------------------------------------------
-        # [추가 포인트] 그래프가 모두 그려진 후 1.5초 뒤에 자동으로 인쇄 창 호출
-        # ---------------------------------------------------------
+        # 그래프가 모두 그려진 후 1.5초 뒤에 자동으로 인쇄 창 호출
         components.html(
             """
             <script>
