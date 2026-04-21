@@ -261,6 +261,125 @@ def render_monthly_trend(df, unit, prefix):
         styled = center_style(styled_df)
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
+    # ─────────────────────────────────────────────────────────
+    # [추가됨] 보고서 일괄 출력 기능 (가장 하단)
+    # ─────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
+    st.caption("출력할 항목을 체크하고 버튼을 누르면, 모든 그룹의 데이터가 순서대로 나열됩니다. (브라우저 인쇄 `Ctrl+P`를 활용하여 PDF로 저장하세요.)")
+
+    chk_col1, chk_col2, chk_col3 = st.columns(3)
+    with chk_col1:
+        prt_line = st.checkbox("1. 연간추이 그래프", value=True, key=f"{prefix}_prt_line")
+    with chk_col2:
+        prt_bar = st.checkbox("2. 연도별 동월 비교 그래프", value=True, key=f"{prefix}_prt_bar")
+    with chk_col3:
+        prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
+
+    if st.button("선택 항목 일괄 렌더링", key=f"{prefix}_prt_btn", type="primary"):
+        st.markdown("---")
+        # 전체 및 설정된 순서대로 그룹 순회
+        for print_grp in ["전체"] + GROUP_ORDER:
+            st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 50px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
+
+            # 출력용 데이터 필터링
+            p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
+
+            p_fig_line = go.Figure()
+            p_fig_bar = go.Figure()
+            p_table_list = []
+            p_line_vals = []
+
+            # 선택된 연도별로 출력용 그래프/표 데이터 생성 (위의 로직과 동일하게 안전하게 분리 적용)
+            for year in sorted(sel_years):
+                if year == 2026:
+                    y26_plan = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
+                    y26_act = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "실적") & (p_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
+
+                    if not y26_plan.empty:
+                        c_plan = LINE_COLOR_MAP["2026년 계획"]
+                        p_fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                        p_line_vals.extend(y26_plan["값"].tolist())
+                        y26_plan_tb = y26_plan.copy()
+                        y26_plan_tb["표_컬럼"] = "2026년 계획"
+                        p_table_list.append(y26_plan_tb)
+                        p_fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
+
+                    if not y26_act.empty:
+                        c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                        p_fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                        p_line_vals.extend(y26_act["값"].tolist())
+                        y26_act_tb = y26_act.copy()
+                        y26_act_tb["표_컬럼"] = "2026년 실적"
+                        p_table_list.append(y26_act_tb)
+                        p_fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
+
+                else:
+                    y_act = p_df[(p_df["연"] == year) & (p_df["계획/실적"] == "실적")]
+                    y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
+
+                    if not y_act_grp.empty:
+                        key_name = f"{year}년 실적"
+                        c = LINE_COLOR_MAP.get(key_name, "#808080")
+                        p_fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
+                        p_line_vals.extend(y_act_grp["값"].tolist())
+                        y_act_tb = y_act_grp.copy()
+                        y_act_tb["표_컬럼"] = key_name
+                        p_table_list.append(y_act_tb)
+                        p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
+
+            # 체크박스 선택 여부에 따라 화면에 출력
+            if prt_line:
+                if p_line_vals:
+                    min_y, max_y = min(p_line_vals), max(p_line_vals)
+                    y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
+                    y_max_s = max_y * 1.05
+                    p_fig_line.update_layout(height=500, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                else:
+                    p_fig_line.update_layout(height=500, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                
+                st.markdown(f"**■ [{print_grp}] 연간 추이 그래프**")
+                st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
+
+            if prt_bar:
+                p_fig_bar.update_layout(barmode='group', bargap=0.36, height=500, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                st.markdown(f"**■ [{print_grp}] 연도별 동월 비교 그래프**")
+                st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
+
+            if prt_tbl and p_table_list:
+                t_df = pd.concat(p_table_list, ignore_index=True)
+                p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
+
+                if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
+                    p_table["증감량(차이)"] = p_table["2026년 실적"] - p_table["2026년 계획"]
+                    p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
+                    p_table["증감률(%)"] = np.nan
+                    valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
+                    p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+
+                total_row = p_table.sum(numeric_only=True)
+                p_table.loc["합계"] = total_row
+
+                if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
+                    val_diff = p_table.loc["합계", "증감량(차이)"]
+                    val_plan = p_table.loc["합계", "2026년 계획"]
+                    p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
+
+                p_table = p_table.reset_index()
+                numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
+                format_dict = {col: "{:,.0f}" for col in numeric_cols}
+                if "증감률(%)" in p_table.columns:
+                    format_dict["증감률(%)"] = "{:,.1f}%"
+
+                styled_df = p_table.style.format(format_dict, na_rep="-")
+                # 출력용 표는 흑백/회색 톤으로 심플하게 강조 처리
+                styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row['월'] == '합계' else '' for _ in row], axis=1)
+                
+                st.markdown(f"**■ [{print_grp}] 월별 상세 데이터표**")
+                st.dataframe(center_style(styled_df), use_container_width=True, hide_index=True)
+
+            st.markdown("<br><br>", unsafe_allow_html=True)
+
 # ─────────────────────────────────────────────────────────
 # 메인 실행
 # ─────────────────────────────────────────────────────────
