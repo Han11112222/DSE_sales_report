@@ -284,7 +284,6 @@ def render_monthly_trend(df, unit, prefix):
         
         # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
-            # [수정] 상단 빈 공간을 줄이기 위해 margin-top을 50px에서 10px로 축소
             st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
             p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
@@ -409,16 +408,25 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown("<br><br>", unsafe_allow_html=True)
             
         # ---------------------------------------------------------
-        # [수정] 인쇄 창 호출 및 상단 여백 제거용 CSS 주입
+        # [수정] 인쇄 창 호출 및 상단 여백 제거, 좌우 중앙 정렬 CSS 주입
         # ---------------------------------------------------------
         components.html(
             """
             <style>
             @media print {
-                /* Streamlit 메인 컨테이너 기본 상단 여백 제거 */
+                /* Streamlit 메인 컨테이너 기본 여백 제거 및 좌우 중앙 정렬 */
                 .main .block-container, .block-container {
                     padding-top: 1rem !important;
                     margin-top: 0 !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    max-width: 100% !important;
+                    width: 100% !important;
+                }
+                /* 사이드바가 숨겨진 후 남은 빈 공간을 채워 완벽한 가운데 정렬 유도 */
+                [data-testid="stAppViewContainer"] > section:nth-child(2) {
+                    width: 100% !important;
+                    margin: 0 auto !important;
                 }
             }
             </style>
