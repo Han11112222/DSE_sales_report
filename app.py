@@ -284,7 +284,8 @@ def render_monthly_trend(df, unit, prefix):
         
         # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
-            st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 50px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
+            # [수정] 상단 빈 공간을 줄이기 위해 margin-top을 50px에서 10px로 축소
+            st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
             p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
 
@@ -408,11 +409,19 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown("<br><br>", unsafe_allow_html=True)
             
         # ---------------------------------------------------------
-        # [핵심 수정] 미리보기 렌더링 후 가장 하단에 네이티브 인쇄 버튼 삽입
-        # 버튼을 누르면 마커 위쪽의 모든 요소(사이드바, 제목 등)를 임시로 숨기고 인쇄창을 띄웁니다.
+        # [수정] 인쇄 창 호출 및 상단 여백 제거용 CSS 주입
         # ---------------------------------------------------------
         components.html(
             """
+            <style>
+            @media print {
+                /* Streamlit 메인 컨테이너 기본 상단 여백 제거 */
+                .main .block-container, .block-container {
+                    padding-top: 1rem !important;
+                    margin-top: 0 !important;
+                }
+            }
+            </style>
             <div style="display: flex; justify-content: center; margin-top: 20px;">
                 <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;">
                     🖨️ PDF 저장하기
