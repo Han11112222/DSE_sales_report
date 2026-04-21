@@ -257,13 +257,13 @@ def render_monthly_trend(df, unit, prefix):
             format_dict["증감률(%)"] = "{:,.1f}%"
 
         styled_df = table.style.format(format_dict, na_rep="-")
-        styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
+        styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row['월'] == '합계' else '' for _ in row], axis=1)
         
         styled = center_style(styled_df)
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # 보고서 일괄 출력 뷰어
+    # 보고서 일괄 출력 뷰어 (수정된 정렬 및 인쇄 설정)
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
@@ -278,12 +278,14 @@ def render_monthly_trend(df, unit, prefix):
         prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
 
     if st.button("미리보기", key=f"{prefix}_preview_btn", type="primary"):
-        # [핵심] 출력 시 불필요한 상단 영역을 가리기 위한 기준 마커 삽입
+        # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커
         st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
         st.markdown("---")
         
-        # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
+            # 중앙 정렬을 위한 컨테이너 시작
+            st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center;'>", unsafe_allow_html=True)
+            
             st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
             p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
@@ -330,10 +332,9 @@ def render_monthly_trend(df, unit, prefix):
                         p_table_list.append(y_act_tb)
                         p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-            # -----------------------------------------------------
-            # 꺾은선, 막대 그래프 모두 선택 시 좌우로 나란히 배치
-            # -----------------------------------------------------
+            # 꺾은선, 막대 그래프 좌우 배치 및 중앙 정렬
             if prt_line and prt_bar:
+                # 컨테이너 내에서 중앙 정렬을 위해 갭 조절
                 col_left, col_right = st.columns(2)
                 
                 with col_left:
@@ -341,16 +342,16 @@ def render_monthly_trend(df, unit, prefix):
                         min_y, max_y = min(p_line_vals), max(p_line_vals)
                         y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                         y_max_s = max_y * 1.05
-                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                     else:
-                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                     
-                    st.markdown(f"**■ [{print_grp}] 연간 추이 그래프**")
+                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                     st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
 
                 with col_right:
-                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
-                    st.markdown(f"**■ [{print_grp}] 연도별 동월 비교 그래프**")
+                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                     st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
 
             else:
@@ -359,21 +360,18 @@ def render_monthly_trend(df, unit, prefix):
                         min_y, max_y = min(p_line_vals), max(p_line_vals)
                         y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                         y_max_s = max_y * 1.05
-                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                        p_fig_line.update_layout(height=450, width=800, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                     else:
-                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
+                        p_fig_line.update_layout(height=450, width=800, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                     
-                    st.markdown(f"**■ [{print_grp}] 연간 추이 그래프**")
-                    st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_{prefix}_{print_grp}")
+                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
+                    st.plotly_chart(p_fig_line, use_container_width=False, key=f"prt_line_single_{prefix}_{print_grp}")
 
                 if prt_bar:
-                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
-                    st.markdown(f"**■ [{print_grp}] 연도별 동월 비교 그래프**")
-                    st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_{prefix}_{print_grp}")
+                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, width=800, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
+                    st.plotly_chart(p_fig_bar, use_container_width=False, key=f"prt_bar_single_{prefix}_{print_grp}")
 
-            # -----------------------------------------------------
-            # 표 렌더링 (그래프 아래에 전체 너비로)
-            # -----------------------------------------------------
             if prt_tbl and p_table_list:
                 t_df = pd.concat(p_table_list, ignore_index=True)
                 p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
@@ -402,19 +400,18 @@ def render_monthly_trend(df, unit, prefix):
                 styled_df = p_table.style.format(format_dict, na_rep="-")
                 styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row['월'] == '합계' else '' for _ in row], axis=1)
                 
-                st.markdown(f"**■ [{print_grp}] 월별 상세 데이터표**")
+                st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
                 st.dataframe(center_style(styled_df), use_container_width=True, hide_index=True)
 
+            st.markdown("</div>", unsafe_allow_html=True) # 컨테이너 종료
             st.markdown("<br><br>", unsafe_allow_html=True)
             
-        # ---------------------------------------------------------
-        # [수정] 인쇄 창 호출 및 상단 여백 제거, 좌우 중앙 정렬 CSS 주입
-        # ---------------------------------------------------------
+        # PDF 저장하기 버튼 및 인쇄 스크립트
         components.html(
             """
             <style>
             @media print {
-                /* Streamlit 메인 컨테이너 기본 여백 제거 및 좌우 중앙 정렬 */
+                /* 화면 상단 여백 및 기본 UI 제거 */
                 .main .block-container, .block-container {
                     padding-top: 1rem !important;
                     margin-top: 0 !important;
@@ -423,15 +420,22 @@ def render_monthly_trend(df, unit, prefix):
                     max-width: 100% !important;
                     width: 100% !important;
                 }
-                /* 사이드바가 숨겨진 후 남은 빈 공간을 채워 완벽한 가운데 정렬 유도 */
+                /* 가로 중앙 정렬 유도 */
                 [data-testid="stAppViewContainer"] > section:nth-child(2) {
                     width: 100% !important;
                     margin: 0 auto !important;
                 }
+                .stHorizontalBlock {
+                    justify-content: center !important;
+                }
+                /* PDF 저장하기 버튼을 인쇄물에서 숨김 */
+                #print-btn-container {
+                    display: none !important;
+                }
             }
             </style>
-            <div style="display: flex; justify-content: center; margin-top: 20px;">
-                <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;">
+            <div id="print-btn-container" style="display: flex; justify-content: center; margin-top: 20px;">
+                <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     🖨️ PDF 저장하기
                 </button>
             </div>
@@ -441,7 +445,6 @@ def render_monthly_trend(df, unit, prefix):
                 var marker = doc.getElementById('preview-marker');
                 var hiddenElements = [];
                 
-                // 마커 위쪽(기존 그래프 등)을 모두 찾아 숨김
                 if (marker) {
                     var container = marker.closest('[data-testid="stElementContainer"]') || marker.closest('.element-container') || marker.parentNode;
                     var sibling = container.previousElementSibling;
@@ -452,17 +455,14 @@ def render_monthly_trend(df, unit, prefix):
                     }
                 }
 
-                // 사이드바, 메인 타이틀, 탭 메뉴 등 최상위 UI 숨김
                 var extras = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
                 extras.forEach(el => {
                     hiddenElements.push({el: el, orig: el.style.cssText || ''});
                     el.style.setProperty('display', 'none', 'important');
                 });
 
-                // PDF 인쇄 창 호출
                 window.parent.print();
 
-                // 인쇄 창이 닫히거나 취소되면 1.5초 후 화면 원래대로 복구
                 setTimeout(() => {
                     hiddenElements.forEach(item => {
                         item.el.style.cssText = item.orig;
