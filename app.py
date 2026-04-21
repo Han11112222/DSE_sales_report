@@ -267,7 +267,7 @@ def render_monthly_trend(df, unit, prefix):
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
-    st.caption("항목을 체크하고 버튼을 누르면 데이터가 나열된 후 **자동으로 PDF 저장 창**이 열립니다.")
+    st.caption("항목을 체크하고 버튼을 누르면 인쇄용 미리보기 화면이 나열됩니다.")
 
     chk_col1, chk_col2, chk_col3 = st.columns(3)
     with chk_col1:
@@ -277,8 +277,8 @@ def render_monthly_trend(df, unit, prefix):
     with chk_col3:
         prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
 
-    # 버튼 텍스트 변경: PDF 저장하기
-    if st.button("PDF 저장하기", key=f"{prefix}_prt_btn", type="primary"):
+    # 버튼 텍스트 변경: 미리보기
+    if st.button("미리보기", key=f"{prefix}_preview_btn", type="primary"):
         st.markdown("---")
         # 전체 및 설정된 순서대로 그룹 순회
         for print_grp in ["전체"] + GROUP_ORDER:
@@ -329,7 +329,7 @@ def render_monthly_trend(df, unit, prefix):
                         p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
             # -----------------------------------------------------
-            # [수정] 꺾은선, 막대 그래프 모두 선택 시 좌우로 나란히 배치
+            # 꺾은선, 막대 그래프 모두 선택 시 좌우로 나란히 배치
             # -----------------------------------------------------
             if prt_line and prt_bar:
                 col_left, col_right = st.columns(2)
@@ -339,7 +339,6 @@ def render_monthly_trend(df, unit, prefix):
                         min_y, max_y = min(p_line_vals), max(p_line_vals)
                         y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                         y_max_s = max_y * 1.05
-                        # 나란히 배치되므로 높이를 450으로 약간 조절하여 비율을 맞춤
                         p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
                     else:
                         p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1), annotations=[unit_anno])
@@ -353,7 +352,6 @@ def render_monthly_trend(df, unit, prefix):
                     st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
 
             else:
-                # 둘 중 하나만 선택했을 때는 기존처럼 전체 화면 너비 사용
                 if prt_line:
                     if p_line_vals:
                         min_y, max_y = min(p_line_vals), max(p_line_vals)
@@ -407,16 +405,18 @@ def render_monthly_trend(df, unit, prefix):
 
             st.markdown("<br><br>", unsafe_allow_html=True)
             
-        # 그래프가 모두 그려진 후 1.5초 뒤에 자동으로 인쇄 창 호출
+        # ---------------------------------------------------------
+        # [핵심 수정] 미리보기 렌더링 후 가장 하단에 네이티브 인쇄 버튼 삽입
+        # ---------------------------------------------------------
         components.html(
             """
-            <script>
-            setTimeout(function() {
-                window.parent.print();
-            }, 1500);
-            </script>
+            <div style="display: flex; justify-content: center; margin-top: 20px;">
+                <button onclick="window.parent.print()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;">
+                    🖨️ PDF 저장하기
+                </button>
+            </div>
             """,
-            height=0
+            height=80
         )
 
 # ─────────────────────────────────────────────────────────
