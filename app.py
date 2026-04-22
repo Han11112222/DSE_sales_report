@@ -139,8 +139,7 @@ def render_monthly_trend(df, unit, prefix):
             
             if not y26_plan.empty:
                 c_plan = LINE_COLOR_MAP["2026년 계획"]
-                fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', 
-                                         name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
                 line_y_vals.extend(y26_plan["값"].tolist())
                 
                 y26_plan_tb = y26_plan.copy()
@@ -151,8 +150,7 @@ def render_monthly_trend(df, unit, prefix):
                 
             if not y26_act.empty:
                 c_act26 = LINE_COLOR_MAP["2026년 실적"]
-                fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', 
-                                         name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
                 line_y_vals.extend(y26_act["값"].tolist())
                 
                 y26_act_tb = y26_act.copy()
@@ -169,8 +167,7 @@ def render_monthly_trend(df, unit, prefix):
                 key_name = f"{year}년 실적"
                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                 
-                fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', 
-                                         name=key_name, line=dict(color=c, width=2.5)))
+                fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
                 line_y_vals.extend(y_act_grp["값"].tolist())
 
                 y_act_tb = y_act_grp.copy()
@@ -433,7 +430,7 @@ def render_monthly_trend(df, unit, prefix):
                         st.table(styled)
 
                 elif (prt_line or prt_bar) and prt_tbl:
-                    # [핵심 수정] 좌측 그래프 1.5 비율 할당, 세로 길이 480으로 확대하여 표와 완벽한 시각적 밸런스 유지
+                    # [핵심 수정] 좌측 그래프 1.5 비율 유지, 높이를 480px로 확대하여 A3 가로에서 시각적 만족감 극대화
                     col_left, col_right = st.columns([1.5, 1])
                     with col_left:
                         if prt_line:
