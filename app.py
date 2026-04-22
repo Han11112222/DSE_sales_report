@@ -325,7 +325,6 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown("---")
             
             for print_grp in selected_groups:
-                # [핵심] page-break-inside: avoid를 통해 그룹별 컨테이너가 찢어지지 않도록 보호
                 st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center; page-break-inside: avoid; break-inside: avoid;'>", unsafe_allow_html=True)
                 st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
@@ -434,22 +433,22 @@ def render_monthly_trend(df, unit, prefix):
                         st.table(styled)
 
                 elif (prt_line or prt_bar) and prt_tbl:
-                    col_left, col_right = st.columns([1.2, 1])
+                    # [핵심 수정] 좌측 그래프 1.5 비율 할당, 세로 길이 480으로 확대하여 표와 완벽한 시각적 밸런스 유지
+                    col_left, col_right = st.columns([1.5, 1])
                     with col_left:
                         if prt_line:
                             if p_line_vals:
                                 min_y, max_y = min(p_line_vals), max(p_line_vals)
                                 y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                                 y_max_s = max_y * 1.05
-                                # [핵심 수정] 우측 표와 시각적으로 딱 떨어지도록 그래프 높이를 420으로 하향 조정하여 2그룹/페이지 구현
-                                p_fig_line.update_layout(height=420, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                                p_fig_line.update_layout(height=480, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             else:
-                                p_fig_line.update_layout(height=420, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                                p_fig_line.update_layout(height=480, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
                         else:
-                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=420, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=480, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
                     
@@ -483,7 +482,6 @@ def render_monthly_trend(df, unit, prefix):
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
-            # [핵심 수정] A3 용지 설정 및 1페이지 상단 여백 완벽 제거
             components.html(
                 """
                 <style>
