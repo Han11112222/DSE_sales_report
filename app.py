@@ -269,7 +269,6 @@ def render_monthly_trend(df, unit, prefix):
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
     st.caption("항목과 그룹을 체크하고 버튼을 누르면 선택한 내용만 인쇄용 미리보기 화면에 나열됩니다.")
 
-    # [수정1] 출력 항목과 출력 그룹 선택 기능 분리
     st.markdown("##### 1. 출력 항목 선택")
     chk_col1, chk_col2, chk_col3 = st.columns(3)
     with chk_col1:
@@ -293,11 +292,22 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커
+            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 표 높이 고정용 CSS 주입
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
+            st.markdown(
+                """
+                <style>
+                /* [핵심 추가] 출력용 표의 세로칸 높이(padding/height)를 동일하게 강제 고정 */
+                .stTable table th, .stTable table td {
+                    padding: 12px 8px !important;
+                    height: 45px !important;
+                    vertical-align: middle !important;
+                }
+                </style>
+                """, unsafe_allow_html=True
+            )
             st.markdown("---")
             
-            # [수정2] 사용자가 선택한 그룹(selected_groups)만 순회하도록 변경
             for print_grp in selected_groups:
                 st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center;'>", unsafe_allow_html=True)
                 st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
@@ -367,7 +377,6 @@ def render_monthly_trend(df, unit, prefix):
                         st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
 
                 else:
-                    # [수정3] 단일 그래프 출력 시 width 제한을 풀고 use_container_width=True를 적용하여 표 너비와 통일
                     if prt_line:
                         if p_line_vals:
                             min_y, max_y = min(p_line_vals), max(p_line_vals)
@@ -394,7 +403,7 @@ def render_monthly_trend(df, unit, prefix):
                         p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
                         p_table["증감률(%)"] = np.nan
                         valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
-                        p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+                        p_table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
 
                     total_row = p_table.sum(numeric_only=True)
                     p_table.loc["합계"] = total_row
@@ -404,7 +413,6 @@ def render_monthly_trend(df, unit, prefix):
                         val_plan = p_table.loc["합계", "2026년 계획"]
                         p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
 
-                    # [수정4] st.dataframe 대신 st.table을 사용하여 가로 스크롤 잘림 없이 100% 인쇄되도록 변경
                     p_table_print = p_table.copy()
                     if p_table_print.index.name != "월":
                         p_table_print.index.name = "월"
