@@ -292,22 +292,26 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 강력한 표 높이 고정용 CSS 주입
+            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 표 높이 고정용 CSS 주입
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <style>
-                /* [핵심 수정] 어떤 상황에서도 표의 모든 행(tr)과 칸(td) 높이를 강제로 똑같이 맞춤 */
-                div[data-testid="stTable"] table tbody tr,
-                div[data-testid="stTable"] table tbody tr td,
-                div[data-testid="stTable"] table thead tr th,
-                table tbody tr, table tbody tr td {
-                    height: 48px !important;
-                    min-height: 48px !important;
-                    padding-top: 10px !important;
-                    padding-bottom: 10px !important;
+                /* [핵심 수정] 원본 데이터표(dataframe)처럼 콤팩트하고 모든 칸의 높이를 완벽하게 100% 동일하게 강제 고정 */
+                div[data-testid="stTable"] table th,
+                div[data-testid="stTable"] table td {
+                    height: 35px !important;
+                    min-height: 35px !important;
+                    max-height: 35px !important;
+                    padding: 4px 8px !important;
                     vertical-align: middle !important;
-                    line-height: 1.5 !important;
+                    line-height: 1.2 !important;
+                    white-space: nowrap !important;
+                }
+                div[data-testid="stTable"] table tr {
+                    height: 35px !important;
+                    min-height: 35px !important;
+                    max-height: 35px !important;
                 }
                 </style>
                 """, unsafe_allow_html=True
