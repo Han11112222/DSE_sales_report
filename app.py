@@ -292,28 +292,25 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 CSS
+            # [핵심 수정] 상단 데이터표와 완벽하게 동일한 콤팩트 사이즈 CSS 주입
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <style>
-                /* 전체적인 여백 제어용 CSS */
-                .print-page-container table {
-                    border-collapse: collapse !important;
-                    width: 100% !important;
-                }
-                .print-page-container table tbody tr,
-                .print-page-container table thead tr {
-                    height: 45px !important;
-                }
-                .print-page-container table th,
-                .print-page-container table td {
-                    height: 45px !important;
-                    min-height: 45px !important;
-                    max-height: 45px !important;
-                    padding-top: 8px !important;
-                    padding-bottom: 8px !important;
+                div[data-testid="stTable"] table th,
+                div[data-testid="stTable"] table td {
+                    height: 28px !important;
+                    min-height: 28px !important;
+                    max-height: 28px !important;
+                    padding: 2px 8px !important;
                     vertical-align: middle !important;
+                    line-height: 1.2 !important;
+                    white-space: nowrap !important;
+                }
+                div[data-testid="stTable"] table tr {
+                    height: 28px !important;
+                    min-height: 28px !important;
+                    max-height: 28px !important;
                 }
                 </style>
                 """, unsafe_allow_html=True
@@ -437,21 +434,9 @@ def render_monthly_trend(df, unit, prefix):
                     styled_df = p_table_print.style.format(format_dict, na_rep="-")
                     styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row.name == '합계' else '' for _ in row], axis=1)
                     
-                    # [핵심 추가] Pandas Styler를 통해 인라인으로 높이 45px 강제 박제
-                    styled_df = styled_df.set_properties(**{
-                        "text-align": "center",
-                        "height": "45px",
-                        "min-height": "45px",
-                        "vertical-align": "middle"
-                    })
-                    styled_df = styled_df.set_table_styles([
-                        dict(selector="th", props=[("text-align", "center"), ("height", "45px"), ("min-height", "45px"), ("vertical-align", "middle")]),
-                        dict(selector="td", props=[("height", "45px"), ("min-height", "45px"), ("vertical-align", "middle")]),
-                        dict(selector="tr", props=[("height", "45px"), ("min-height", "45px")])
-                    ])
-                    
                     st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
-                    st.table(styled_df)
+                    # [수정] 뚱뚱하게 만들었던 인라인 Styler 속성을 걷어내고 순수 center_style만 남김
+                    st.table(center_style(styled_df))
 
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<br><br>", unsafe_allow_html=True)
