@@ -223,7 +223,7 @@ def render_monthly_trend(df, unit, prefix):
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # ─────────────────────────────────────────────────────────
-    # [추가 영역] 연간 용도별 그래프(스택)
+    # [추가 영역] 연간 용도별 그래프(스택) & 대표님 보고용 구성비율
     # ─────────────────────────────────────────────────────────
     st.markdown(f"##### 📊 {sel_group} 연간 용도별 합계 (스택그래프)")
     fig_stack = go.Figure()
@@ -271,6 +271,52 @@ def render_monthly_trend(df, unit, prefix):
         annotations=[unit_anno]
     )
     st.plotly_chart(fig_stack, use_container_width=True)
+
+    # [수정보완] 대표님 보고용 100% 스택 그래프 (전체 그룹일 때만 노출)
+    if sel_group == "전체":
+        st.markdown("##### 🥧 대표님 보고용: 월별 용도별 구성비 (%)")
+        
+        target_year = max(sel_years)
+        ratio_target = "계획" if target_year == 2026 else "실적"
+        
+        st.caption(f"💡 {target_year}년 {ratio_target} 기준 월별 비중 변화")
+        
+        ratio_df = df[(df["연"] == target_year) & (df["계획/실적"] == ratio_target)]
+        
+        monthly_totals = ratio_df.groupby("월")["값"].sum().reset_index()
+        monthly_totals.rename(columns={"값": "총합"}, inplace=True)
+        
+        fig_ratio = go.Figure()
+        
+        for grp in GROUP_ORDER:
+            grp_data = ratio_df[ratio_df["그룹"] == grp].groupby("월")["값"].sum().reset_index()
+            
+            grp_data = pd.merge(grp_data, monthly_totals, on="월", how="right").fillna(0)
+            grp_data["비중"] = np.where(grp_data["총합"] > 0, (grp_data["값"] / grp_data["총합"]) * 100, 0)
+            
+            text_labels = [f"{val:.1f}%" if val >= 3.0 else "" for val in grp_data["비중"]]
+            
+            fig_ratio.add_trace(go.Bar(
+                x=grp_data["월"],
+                y=grp_data["비중"],
+                name=grp,
+                marker_color=COLOR_MAP.get(grp, "#808080"),
+                text=text_labels,
+                textposition='inside',
+                insidetextanchor='middle'
+            ))
+            
+        fig_ratio.update_layout(
+            barmode='stack',
+            bargap=0.36,
+            xaxis=dict(dtick=1, title="월"),
+            yaxis=dict(title="비중 (%)", range=[0, 100], tickformat=".0f", ticksuffix="%"),
+            hovermode="x unified",
+            legend=dict(orientation="h", y=1.1),
+            height=450
+        )
+        
+        st.plotly_chart(fig_ratio, use_container_width=True)
     # ─────────────────────────────────────────────────────────
 
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
