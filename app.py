@@ -223,100 +223,95 @@ def render_monthly_trend(df, unit, prefix):
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # ─────────────────────────────────────────────────────────
-    # [추가 영역] 연간 용도별 그래프(스택) & 대표님 보고용 구성비율
+    # [수정 영역] 연간 구성비 추이 그래프 (꺾은선) & 용도별 구성비 (스택그래프)
     # ─────────────────────────────────────────────────────────
-    st.markdown(f"##### 📊 {sel_group} 연간 용도별 합계 (스택그래프)")
+    st.markdown(f"##### 📈 {sel_group} 연간 구성비 추이 그래프")
+    
+    # 월별 총합 계산 (비율 분모용)
+    total_monthly = df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index(name="총합")
+    ratio_line_df = plot_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
+    ratio_line_df = pd.merge(ratio_line_df, total_monthly, on=["연", "월", "계획/실적"])
+    ratio_line_df["비중"] = np.where(ratio_line_df["총합"] > 0, (ratio_line_df["값"] / ratio_line_df["총합"]) * 100, 0)
+
+    fig_ratio_line = go.Figure()
+
+    for year in sorted(sel_years):
+        if year == 2026:
+            y26_plan_r = ratio_line_df[(ratio_line_df["연"] == 2026) & (ratio_line_df["계획/실적"] == "계획")]
+            if not y26_plan_r.empty:
+                c_plan = LINE_COLOR_MAP["2026년 계획"]
+                fig_ratio_line.add_trace(go.Scatter(x=y26_plan_r["월"], y=y26_plan_r["비중"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+            
+            y26_act_r = ratio_line_df[(ratio_line_df["연"] == 2026) & (ratio_line_df["계획/실적"] == "실적") & (ratio_line_df["월"] <= 3)]
+            if not y26_act_r.empty:
+                c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                fig_ratio_line.add_trace(go.Scatter(x=y26_act_r["월"], y=y26_act_r["비중"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+        else:
+            y_act_r = ratio_line_df[(ratio_line_df["연"] == year) & (ratio_line_df["계획/실적"] == "실적")]
+            if not y_act_r.empty:
+                key_name = f"{year}년 실적"
+                c = LINE_COLOR_MAP.get(key_name, "#808080")
+                fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
+
+    fig_ratio_line.update_layout(
+        height=450, 
+        xaxis=dict(dtick=1, title="월"), 
+        yaxis=dict(title="구성비 (%)", range=[0, 105], tickformat=".0f", ticksuffix="%"), 
+        hovermode="x unified", 
+        legend=dict(orientation="h", y=1.1)
+    )
+    st.plotly_chart(fig_ratio_line, use_container_width=True)
+
+    st.markdown(f"##### 📊 연간 용도별 구성비 (스택그래프)")
     fig_stack = go.Figure()
     
-    # '전체'일 경우 모든 그룹, 특정 그룹 선택일 경우 해당 그룹만 스택으로 표시
-    stack_groups = GROUP_ORDER if sel_group == "전체" else [sel_group]
-    
-    for grp in stack_groups:
-        grp_x = []
+    # 연간 구성비 스택은 항상 모든 용도를 다 보여주는 것이 목적이므로 GROUP_ORDER 전체 사용
+    x_labels = []
+    annual_totals = {}
+    for year in sorted(sel_years):
+        if year == 2026:
+            x_labels.extend(["2026년 계획", "2026년 실적"])
+            annual_totals["2026년 계획"] = df[(df["연"] == 2026) & (df["계획/실적"] == "계획")]["값"].sum()
+            annual_totals["2026년 실적"] = df[(df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
+        else:
+            label = f"{year}년 실적"
+            x_labels.append(label)
+            annual_totals[label] = df[(df["연"] == year) & (df["계획/실적"] == "실적")]["값"].sum()
+            
+    for grp in GROUP_ORDER:
         grp_y = []
-        
-        for year in sorted(sel_years):
-            if year == 2026:
-                # 2026년 계획
-                val_plan = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "계획")]["값"].sum()
-                grp_x.append("2026년 계획")
-                grp_y.append(val_plan)
-                
-                # 2026년 실적 (1~3월 누적)
-                y26_act_df = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]
-                if not y26_act_df.empty:
-                    grp_x.append("2026년 실적")
-                    grp_y.append(y26_act_df["값"].sum())
+        for label in x_labels:
+            if label == "2026년 계획":
+                val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "계획")]["값"].sum()
+            elif label == "2026년 실적":
+                val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
             else:
-                # 과거 실적
-                y_act_df = df[(df["그룹"] == grp) & (df["연"] == year) & (df["계획/실적"] == "실적")]
-                if not y_act_df.empty:
-                    grp_x.append(f"{year}년 실적")
-                    grp_y.append(y_act_df["값"].sum())
-        
+                y_int = int(label[:4])
+                val = df[(df["그룹"] == grp) & (df["연"] == y_int) & (df["계획/실적"] == "실적")]["값"].sum()
+            
+            tot = annual_totals.get(label, 0)
+            ratio = (val / tot * 100) if tot > 0 else 0
+            grp_y.append(ratio)
+            
         fig_stack.add_trace(go.Bar(
-            x=grp_x, 
+            x=x_labels, 
             y=grp_y, 
             name=grp, 
-            marker_color=COLOR_MAP.get(grp, "#808080")
+            marker_color=COLOR_MAP.get(grp, "#808080"),
+            text=[f"{v:.1f}%" if v >= 3.0 else "" for v in grp_y],
+            textposition='inside',
+            insidetextanchor='middle'
         ))
 
     fig_stack.update_layout(
         barmode='stack',
         bargap=0.4,
         xaxis=dict(title="연도 및 구분"),
-        yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"),
+        yaxis=dict(title="구성비 (%)", range=[0, 100], tickformat=".0f", ticksuffix="%"),
         hovermode="x unified",
-        legend=dict(orientation="h", y=1.1),
-        annotations=[unit_anno]
+        legend=dict(orientation="h", y=1.1)
     )
     st.plotly_chart(fig_stack, use_container_width=True)
-
-    # [수정보완] 대표님 보고용 100% 스택 그래프 (전체 그룹일 때만 노출)
-    if sel_group == "전체":
-        st.markdown("##### 🥧 대표님 보고용: 월별 용도별 구성비 (%)")
-        
-        target_year = max(sel_years)
-        ratio_target = "계획" if target_year == 2026 else "실적"
-        
-        st.caption(f"💡 {target_year}년 {ratio_target} 기준 월별 비중 변화")
-        
-        ratio_df = df[(df["연"] == target_year) & (df["계획/실적"] == ratio_target)]
-        
-        monthly_totals = ratio_df.groupby("월")["값"].sum().reset_index()
-        monthly_totals.rename(columns={"값": "총합"}, inplace=True)
-        
-        fig_ratio = go.Figure()
-        
-        for grp in GROUP_ORDER:
-            grp_data = ratio_df[ratio_df["그룹"] == grp].groupby("월")["값"].sum().reset_index()
-            
-            grp_data = pd.merge(grp_data, monthly_totals, on="월", how="right").fillna(0)
-            grp_data["비중"] = np.where(grp_data["총합"] > 0, (grp_data["값"] / grp_data["총합"]) * 100, 0)
-            
-            text_labels = [f"{val:.1f}%" if val >= 3.0 else "" for val in grp_data["비중"]]
-            
-            fig_ratio.add_trace(go.Bar(
-                x=grp_data["월"],
-                y=grp_data["비중"],
-                name=grp,
-                marker_color=COLOR_MAP.get(grp, "#808080"),
-                text=text_labels,
-                textposition='inside',
-                insidetextanchor='middle'
-            ))
-            
-        fig_ratio.update_layout(
-            barmode='stack',
-            bargap=0.36,
-            xaxis=dict(dtick=1, title="월"),
-            yaxis=dict(title="비중 (%)", range=[0, 100], tickformat=".0f", ticksuffix="%"),
-            hovermode="x unified",
-            legend=dict(orientation="h", y=1.1),
-            height=450
-        )
-        
-        st.plotly_chart(fig_ratio, use_container_width=True)
     # ─────────────────────────────────────────────────────────
 
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
