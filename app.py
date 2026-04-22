@@ -238,14 +238,17 @@ def render_monthly_trend(df, unit, prefix):
             table["증감률(%)"] = np.nan
             valid_mask = (table.index <= 3) & (table["2026년 계획"] != 0)
             table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / table.loc[valid_mask, "2026년 계획"]) * 100
+            
+            # [수정 포인트] 화면 표출용 표의 합계 증감률 계산 시 1~3월 누적 계획만 분모로 사용
+            ytd_plan_sum = table.loc[table.index <= 3, "2026년 계획"].sum()
 
         total_row = table.sum(numeric_only=True)
         table.loc["합계"] = total_row
         
         if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
             val_diff = table.loc["합계", "증감량(차이)"]
-            val_plan = table.loc["합계", "2026년 계획"]
-            table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
+            # [수정 포인트] 전체 12개월 계획 합산이 아닌 ytd_plan_sum(1~3월 누적)으로 나누기
+            table.loc["합계", "증감률(%)"] = (val_diff / ytd_plan_sum * 100) if ytd_plan_sum != 0 else np.nan
 
         table = table.reset_index()
         numeric_cols = [col for col in table.columns if col not in ["월", "증감률(%)"]]
@@ -260,7 +263,7 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # 보고서 일괄 출력 뷰어
+    # 보고 일괄 출력 뷰어
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
@@ -381,14 +384,17 @@ def render_monthly_trend(df, unit, prefix):
                         p_table["증감률(%)"] = np.nan
                         valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
                         p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+                        
+                        # [수정 포인트] 인쇄용 표의 합계 증감률 계산 시 1~3월 누적 계획만 분모로 사용
+                        ytd_plan_sum = p_table.loc[p_table.index <= 3, "2026년 계획"].sum()
 
                     total_row = p_table.sum(numeric_only=True)
                     p_table.loc["합계"] = total_row
 
                     if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
                         val_diff = p_table.loc["합계", "증감량(차이)"]
-                        val_plan = p_table.loc["합계", "2026년 계획"]
-                        p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
+                        # [수정 포인트] 전체 12개월 계획 합산이 아닌 ytd_plan_sum(1~3월 누적)으로 나누기
+                        p_table.loc["합계", "증감률(%)"] = (val_diff / ytd_plan_sum * 100) if ytd_plan_sum != 0 else np.nan
 
                     p_table = p_table.reset_index()
                     numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
@@ -430,22 +436,21 @@ def render_monthly_trend(df, unit, prefix):
                         st.table(styled)
 
                 elif (prt_line or prt_bar) and prt_tbl:
-                    # [핵심 수정] 좌측 그래프 1.5 비율 유지, 높이를 480px로 확대하여 A3 가로에서 시각적 만족감 극대화
-                    col_left, col_right = st.columns([1.5, 1])
+                    col_left, col_right = st.columns([1.8, 1])
                     with col_left:
                         if prt_line:
                             if p_line_vals:
                                 min_y, max_y = min(p_line_vals), max(p_line_vals)
                                 y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                                 y_max_s = max_y * 1.05
-                                p_fig_line.update_layout(height=480, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                                p_fig_line.update_layout(height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             else:
-                                p_fig_line.update_layout(height=480, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                                p_fig_line.update_layout(height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
                         else:
-                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=480, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
                     
@@ -492,14 +497,14 @@ def render_monthly_trend(df, unit, prefix):
                         margin-top: 0 !important;
                         padding-left: 0 !important;
                         padding-right: 0 !important;
-                        max-width: 1300px !important;
-                        width: 1300px !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
                         margin: 0 auto !important;
                     }
                     [data-testid="stAppViewContainer"] > section:nth-child(2) {
                         padding-top: 0 !important;
-                        max-width: 1300px !important;
-                        width: 1300px !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
                         margin: 0 auto !important;
                     }
                     header[data-testid="stHeader"], header {
@@ -507,6 +512,10 @@ def render_monthly_trend(df, unit, prefix):
                     }
                     .stHorizontalBlock {
                         justify-content: center !important;
+                        gap: 0rem !important;
+                    }
+                    [data-testid="column"] {
+                        padding: 0 15px !important;
                     }
                     #print-btn-container {
                         display: none !important;
