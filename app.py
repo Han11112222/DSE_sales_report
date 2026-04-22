@@ -257,222 +257,236 @@ def render_monthly_trend(df, unit, prefix):
             format_dict["증감률(%)"] = "{:,.1f}%"
 
         styled_df = table.style.format(format_dict, na_rep="-")
-        styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row['월'] == '합계' else '' for _ in row], axis=1)
+        styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
         
         styled = center_style(styled_df)
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # 보고서 일괄 출력 뷰어 (수정된 정렬 및 인쇄 설정)
+    # 보고서 일괄 출력 뷰어 (완전체 업데이트)
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
-    st.caption("항목을 체크하고 버튼을 누르면 인쇄용 미리보기 화면이 나열됩니다.")
+    st.caption("항목과 그룹을 체크하고 버튼을 누르면 선택한 내용만 인쇄용 미리보기 화면에 나열됩니다.")
 
+    # [수정1] 출력 항목과 출력 그룹 선택 기능 분리
+    st.markdown("##### 1. 출력 항목 선택")
     chk_col1, chk_col2, chk_col3 = st.columns(3)
     with chk_col1:
-        prt_line = st.checkbox("1. 연간추이 그래프", value=True, key=f"{prefix}_prt_line")
+        prt_line = st.checkbox("연간추이 그래프", value=True, key=f"{prefix}_prt_line")
     with chk_col2:
-        prt_bar = st.checkbox("2. 연도별 동월 비교 그래프", value=True, key=f"{prefix}_prt_bar")
+        prt_bar = st.checkbox("연도별 동월 비교 그래프", value=True, key=f"{prefix}_prt_bar")
     with chk_col3:
-        prt_tbl = st.checkbox("3. 월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
+        prt_tbl = st.checkbox("월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
+
+    st.markdown("##### 2. 출력 그룹 선택")
+    grp_cols = st.columns(6)
+    selected_groups = []
+    all_grp_names = ["전체"] + GROUP_ORDER
+    
+    for i, g_name in enumerate(all_grp_names):
+        with grp_cols[i]:
+            if st.checkbox(g_name, value=True, key=f"{prefix}_prt_grp_{i}"):
+                selected_groups.append(g_name)
 
     if st.button("미리보기", key=f"{prefix}_preview_btn", type="primary"):
-        # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커
-        st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
-        st.markdown("---")
-        
-        for print_grp in ["전체"] + GROUP_ORDER:
-            # 중앙 정렬을 위한 컨테이너 시작
-            st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center;'>", unsafe_allow_html=True)
+        if not selected_groups:
+            st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
+        else:
+            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커
+            st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
+            st.markdown("---")
             
-            st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
+            # [수정2] 사용자가 선택한 그룹(selected_groups)만 순회하도록 변경
+            for print_grp in selected_groups:
+                st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center;'>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
-            p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
+                p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
 
-            p_fig_line = go.Figure()
-            p_fig_bar = go.Figure()
-            p_table_list = []
-            p_line_vals = []
+                p_fig_line = go.Figure()
+                p_fig_bar = go.Figure()
+                p_table_list = []
+                p_line_vals = []
 
-            for year in sorted(sel_years):
-                if year == 2026:
-                    y26_plan = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
-                    y26_act = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "실적") & (p_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
+                for year in sorted(sel_years):
+                    if year == 2026:
+                        y26_plan = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
+                        y26_act = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "실적") & (p_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
 
-                    if not y26_plan.empty:
-                        c_plan = LINE_COLOR_MAP["2026년 계획"]
-                        p_fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
-                        p_line_vals.extend(y26_plan["값"].tolist())
-                        y26_plan_tb = y26_plan.copy()
-                        y26_plan_tb["표_컬럼"] = "2026년 계획"
-                        p_table_list.append(y26_plan_tb)
-                        p_fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
+                        if not y26_plan.empty:
+                            c_plan = LINE_COLOR_MAP["2026년 계획"]
+                            p_fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                            p_line_vals.extend(y26_plan["값"].tolist())
+                            y26_plan_tb = y26_plan.copy()
+                            y26_plan_tb["표_컬럼"] = "2026년 계획"
+                            p_table_list.append(y26_plan_tb)
+                            p_fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
 
-                    if not y26_act.empty:
-                        c_act26 = LINE_COLOR_MAP["2026년 실적"]
-                        p_fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
-                        p_line_vals.extend(y26_act["값"].tolist())
-                        y26_act_tb = y26_act.copy()
-                        y26_act_tb["표_컬럼"] = "2026년 실적"
-                        p_table_list.append(y26_act_tb)
-                        p_fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
+                        if not y26_act.empty:
+                            c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                            p_fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                            p_line_vals.extend(y26_act["값"].tolist())
+                            y26_act_tb = y26_act.copy()
+                            y26_act_tb["표_컬럼"] = "2026년 실적"
+                            p_table_list.append(y26_act_tb)
+                            p_fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
+
+                    else:
+                        y_act = p_df[(p_df["연"] == year) & (p_df["계획/실적"] == "실적")]
+                        y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
+
+                        if not y_act_grp.empty:
+                            key_name = f"{year}년 실적"
+                            c = LINE_COLOR_MAP.get(key_name, "#808080")
+                            p_fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
+                            p_line_vals.extend(y_act_grp["값"].tolist())
+                            y_act_tb = y_act_grp.copy()
+                            y_act_tb["표_컬럼"] = key_name
+                            p_table_list.append(y_act_tb)
+                            p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
+
+                if prt_line and prt_bar:
+                    col_left, col_right = st.columns(2)
+                    
+                    with col_left:
+                        if p_line_vals:
+                            min_y, max_y = min(p_line_vals), max(p_line_vals)
+                            y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
+                            y_max_s = max_y * 1.05
+                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        else:
+                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        
+                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
+                        st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
+
+                    with col_right:
+                        p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
+                        st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
 
                 else:
-                    y_act = p_df[(p_df["연"] == year) & (p_df["계획/실적"] == "실적")]
-                    y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
+                    # [수정3] 단일 그래프 출력 시 width 제한을 풀고 use_container_width=True를 적용하여 표 너비와 통일
+                    if prt_line:
+                        if p_line_vals:
+                            min_y, max_y = min(p_line_vals), max(p_line_vals)
+                            y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
+                            y_max_s = max_y * 1.05
+                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        else:
+                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        
+                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
+                        st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_{prefix}_{print_grp}")
 
-                    if not y_act_grp.empty:
-                        key_name = f"{year}년 실적"
-                        c = LINE_COLOR_MAP.get(key_name, "#808080")
-                        p_fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
-                        p_line_vals.extend(y_act_grp["값"].tolist())
-                        y_act_tb = y_act_grp.copy()
-                        y_act_tb["표_컬럼"] = key_name
-                        p_table_list.append(y_act_tb)
-                        p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
+                    if prt_bar:
+                        p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
+                        st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_{prefix}_{print_grp}")
 
-            # 꺾은선, 막대 그래프 좌우 배치 및 중앙 정렬
-            if prt_line and prt_bar:
-                # 컨테이너 내에서 중앙 정렬을 위해 갭 조절
-                col_left, col_right = st.columns(2)
-                
-                with col_left:
-                    if p_line_vals:
-                        min_y, max_y = min(p_line_vals), max(p_line_vals)
-                        y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                        y_max_s = max_y * 1.05
-                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                    else:
-                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                if prt_tbl and p_table_list:
+                    t_df = pd.concat(p_table_list, ignore_index=True)
+                    p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
+
+                    if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
+                        p_table["증감량(차이)"] = p_table["2026년 실적"] - p_table["2026년 계획"]
+                        p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
+                        p_table["증감률(%)"] = np.nan
+                        valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
+                        p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+
+                    total_row = p_table.sum(numeric_only=True)
+                    p_table.loc["합계"] = total_row
+
+                    if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
+                        val_diff = p_table.loc["합계", "증감량(차이)"]
+                        val_plan = p_table.loc["합계", "2026년 계획"]
+                        p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
+
+                    # [수정4] st.dataframe 대신 st.table을 사용하여 가로 스크롤 잘림 없이 100% 인쇄되도록 변경
+                    p_table_print = p_table.copy()
+                    if p_table_print.index.name != "월":
+                        p_table_print.index.name = "월"
+
+                    numeric_cols = [col for col in p_table_print.columns if col not in ["증감률(%)"]]
+                    format_dict = {col: "{:,.0f}" for col in numeric_cols}
+                    if "증감률(%)" in p_table_print.columns:
+                        format_dict["증감률(%)"] = "{:,.1f}%"
+
+                    styled_df = p_table_print.style.format(format_dict, na_rep="-")
+                    styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row.name == '합계' else '' for _ in row], axis=1)
                     
-                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
-                    st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
+                    st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
+                    st.table(center_style(styled_df))
 
-                with col_right:
-                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
-                    st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
-
-            else:
-                if prt_line:
-                    if p_line_vals:
-                        min_y, max_y = min(p_line_vals), max(p_line_vals)
-                        y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                        y_max_s = max_y * 1.05
-                        p_fig_line.update_layout(height=450, width=800, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                    else:
-                        p_fig_line.update_layout(height=450, width=800, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                    
-                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
-                    st.plotly_chart(p_fig_line, use_container_width=False, key=f"prt_line_single_{prefix}_{print_grp}")
-
-                if prt_bar:
-                    p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, width=800, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
-                    st.plotly_chart(p_fig_bar, use_container_width=False, key=f"prt_bar_single_{prefix}_{print_grp}")
-
-            if prt_tbl and p_table_list:
-                t_df = pd.concat(p_table_list, ignore_index=True)
-                p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
-
-                if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
-                    p_table["증감량(차이)"] = p_table["2026년 실적"] - p_table["2026년 계획"]
-                    p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
-                    p_table["증감률(%)"] = np.nan
-                    valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
-                    p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
-
-                total_row = p_table.sum(numeric_only=True)
-                p_table.loc["합계"] = total_row
-
-                if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
-                    val_diff = p_table.loc["합계", "증감량(차이)"]
-                    val_plan = p_table.loc["합계", "2026년 계획"]
-                    p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
-
-                p_table = p_table.reset_index()
-                numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
-                format_dict = {col: "{:,.0f}" for col in numeric_cols}
-                if "증감률(%)" in p_table.columns:
-                    format_dict["증감률(%)"] = "{:,.1f}%"
-
-                styled_df = p_table.style.format(format_dict, na_rep="-")
-                styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row['월'] == '합계' else '' for _ in row], axis=1)
+                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("<br><br>", unsafe_allow_html=True)
                 
-                st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
-                st.dataframe(center_style(styled_df), use_container_width=True, hide_index=True)
-
-            st.markdown("</div>", unsafe_allow_html=True) # 컨테이너 종료
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            
-        # PDF 저장하기 버튼 및 인쇄 스크립트
-        components.html(
-            """
-            <style>
-            @media print {
-                /* 화면 상단 여백 및 기본 UI 제거 */
-                .main .block-container, .block-container {
-                    padding-top: 1rem !important;
-                    margin-top: 0 !important;
-                    padding-left: 0 !important;
-                    padding-right: 0 !important;
-                    max-width: 100% !important;
-                    width: 100% !important;
-                }
-                /* 가로 중앙 정렬 유도 */
-                [data-testid="stAppViewContainer"] > section:nth-child(2) {
-                    width: 100% !important;
-                    margin: 0 auto !important;
-                }
-                .stHorizontalBlock {
-                    justify-content: center !important;
-                }
-                /* PDF 저장하기 버튼을 인쇄물에서 숨김 */
-                #print-btn-container {
-                    display: none !important;
-                }
-            }
-            </style>
-            <div id="print-btn-container" style="display: flex; justify-content: center; margin-top: 20px;">
-                <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    🖨️ PDF 저장하기
-                </button>
-            </div>
-            <script>
-            function printPreview() {
-                var doc = window.parent.document;
-                var marker = doc.getElementById('preview-marker');
-                var hiddenElements = [];
-                
-                if (marker) {
-                    var container = marker.closest('[data-testid="stElementContainer"]') || marker.closest('.element-container') || marker.parentNode;
-                    var sibling = container.previousElementSibling;
-                    while (sibling) {
-                        hiddenElements.push({el: sibling, orig: sibling.style.cssText || ''});
-                        sibling.style.setProperty('display', 'none', 'important');
-                        sibling = sibling.previousElementSibling;
+            components.html(
+                """
+                <style>
+                @media print {
+                    .main .block-container, .block-container {
+                        padding-top: 1rem !important;
+                        margin-top: 0 !important;
+                        padding-left: 0 !important;
+                        padding-right: 0 !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
+                    }
+                    [data-testid="stAppViewContainer"] > section:nth-child(2) {
+                        width: 100% !important;
+                        margin: 0 auto !important;
+                    }
+                    .stHorizontalBlock {
+                        justify-content: center !important;
+                    }
+                    /* PDF 저장하기 버튼을 인쇄물에서 숨김 */
+                    #print-btn-container {
+                        display: none !important;
                     }
                 }
+                </style>
+                <div id="print-btn-container" style="display: flex; justify-content: center; margin-top: 20px;">
+                    <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        🖨️ PDF 저장하기
+                    </button>
+                </div>
+                <script>
+                function printPreview() {
+                    var doc = window.parent.document;
+                    var marker = doc.getElementById('preview-marker');
+                    var hiddenElements = [];
+                    
+                    if (marker) {
+                        var container = marker.closest('[data-testid="stElementContainer"]') || marker.closest('.element-container') || marker.parentNode;
+                        var sibling = container.previousElementSibling;
+                        while (sibling) {
+                            hiddenElements.push({el: sibling, orig: sibling.style.cssText || ''});
+                            sibling.style.setProperty('display', 'none', 'important');
+                            sibling = sibling.previousElementSibling;
+                        }
+                    }
 
-                var extras = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
-                extras.forEach(el => {
-                    hiddenElements.push({el: el, orig: el.style.cssText || ''});
-                    el.style.setProperty('display', 'none', 'important');
-                });
-
-                window.parent.print();
-
-                setTimeout(() => {
-                    hiddenElements.forEach(item => {
-                        item.el.style.cssText = item.orig;
+                    var extras = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
+                    extras.forEach(el => {
+                        hiddenElements.push({el: el, orig: el.style.cssText || ''});
+                        el.style.setProperty('display', 'none', 'important');
                     });
-                }, 1500);
-            }
-            </script>
-            """,
-            height=80
-        )
+
+                    window.parent.print();
+
+                    setTimeout(() => {
+                        hiddenElements.forEach(item => {
+                            item.el.style.cssText = item.orig;
+                        });
+                    }, 1500);
+                }
+                </script>
+                """,
+                height=80
+            )
 
 # ─────────────────────────────────────────────────────────
 # 메인 실행
