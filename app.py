@@ -296,7 +296,6 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown(
                 """
                 <style>
-                /* [핵심 수정] 글자 크기를 110%로 키우고, 월(첫 번째) 컬럼을 좁게, 나머지를 넓게 재조정 */
                 div[data-testid="stTable"] table {
                     table-layout: auto !important;
                     width: 100% !important;
@@ -314,7 +313,6 @@ def render_monthly_trend(df, unit, prefix):
                 div[data-testid="stTable"] table tr {
                     height: 35px !important;
                 }
-                /* 첫 번째(월) 컬럼 가로 사이즈 축소 */
                 div[data-testid="stTable"] table th:first-child,
                 div[data-testid="stTable"] table td:first-child {
                     width: 60px !important;
@@ -327,7 +325,8 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown("---")
             
             for print_grp in selected_groups:
-                st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center;'>", unsafe_allow_html=True)
+                # [핵심] page-break-inside: avoid를 통해 그룹별 컨테이너가 찢어지지 않도록 보호
+                st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center; page-break-inside: avoid; break-inside: avoid;'>", unsafe_allow_html=True)
                 st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
 
                 p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
@@ -435,7 +434,6 @@ def render_monthly_trend(df, unit, prefix):
                         st.table(styled)
 
                 elif (prt_line or prt_bar) and prt_tbl:
-                    # 좌측 그래프:우측 표 비율을 1.2:1로 나누어 시각적 밸런스 조정
                     col_left, col_right = st.columns([1.2, 1])
                     with col_left:
                         if prt_line:
@@ -443,16 +441,15 @@ def render_monthly_trend(df, unit, prefix):
                                 min_y, max_y = min(p_line_vals), max(p_line_vals)
                                 y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                                 y_max_s = max_y * 1.05
-                                # [핵심 수정] 그래프 세로 크기를 450에서 520으로 늘려 우측 표의 상하 길이와 딱 맞춤
-                                p_fig_line.update_layout(height=520, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                                # [핵심 수정] 우측 표와 시각적으로 딱 떨어지도록 그래프 높이를 420으로 하향 조정하여 2그룹/페이지 구현
+                                p_fig_line.update_layout(height=420, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             else:
-                                p_fig_line.update_layout(height=520, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                                p_fig_line.update_layout(height=420, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
                         else:
-                            # [핵심 수정] 막대그래프일 경우도 세로 크기 520으로 동일하게 변경
-                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=520, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=420, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
                     
@@ -486,27 +483,30 @@ def render_monthly_trend(df, unit, prefix):
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
+            # [핵심 수정] A3 용지 설정 및 1페이지 상단 여백 완벽 제거
             components.html(
                 """
                 <style>
                 @media print {
-                    /* [핵심 수정] 1페이지 상단 여백을 완벽하게 날려버리기 위해 padding-top을 0으로 강제 세팅 */
+                    @page {
+                        size: A3 landscape !important;
+                        margin: 10mm !important;
+                    }
                     .main .block-container, .block-container {
                         padding-top: 0 !important;
                         margin-top: 0 !important;
                         padding-left: 0 !important;
                         padding-right: 0 !important;
-                        max-width: 1200px !important;
-                        width: 1200px !important;
+                        max-width: 1300px !important;
+                        width: 1300px !important;
                         margin: 0 auto !important;
                     }
                     [data-testid="stAppViewContainer"] > section:nth-child(2) {
                         padding-top: 0 !important;
-                        max-width: 1200px !important;
-                        width: 1200px !important;
+                        max-width: 1300px !important;
+                        width: 1300px !important;
                         margin: 0 auto !important;
                     }
-                    /* Streamlit 상단 메뉴바/헤더를 인쇄 시 강제로 숨겨 여백 최소화 */
                     header[data-testid="stHeader"], header {
                         display: none !important;
                     }
