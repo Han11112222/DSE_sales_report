@@ -222,6 +222,57 @@ def render_monthly_trend(df, unit, prefix):
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
+    # ─────────────────────────────────────────────────────────
+    # [추가 영역] 연간 용도별 그래프(스택)
+    # ─────────────────────────────────────────────────────────
+    st.markdown(f"##### 📊 {sel_group} 연간 용도별 합계 (스택그래프)")
+    fig_stack = go.Figure()
+    
+    # '전체'일 경우 모든 그룹, 특정 그룹 선택일 경우 해당 그룹만 스택으로 표시
+    stack_groups = GROUP_ORDER if sel_group == "전체" else [sel_group]
+    
+    for grp in stack_groups:
+        grp_x = []
+        grp_y = []
+        
+        for year in sorted(sel_years):
+            if year == 2026:
+                # 2026년 계획
+                val_plan = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "계획")]["값"].sum()
+                grp_x.append("2026년 계획")
+                grp_y.append(val_plan)
+                
+                # 2026년 실적 (1~3월 누적)
+                y26_act_df = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]
+                if not y26_act_df.empty:
+                    grp_x.append("2026년 실적")
+                    grp_y.append(y26_act_df["값"].sum())
+            else:
+                # 과거 실적
+                y_act_df = df[(df["그룹"] == grp) & (df["연"] == year) & (df["계획/실적"] == "실적")]
+                if not y_act_df.empty:
+                    grp_x.append(f"{year}년 실적")
+                    grp_y.append(y_act_df["값"].sum())
+        
+        fig_stack.add_trace(go.Bar(
+            x=grp_x, 
+            y=grp_y, 
+            name=grp, 
+            marker_color=COLOR_MAP.get(grp, "#808080")
+        ))
+
+    fig_stack.update_layout(
+        barmode='stack',
+        bargap=0.4,
+        xaxis=dict(title="연도 및 구분"),
+        yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"),
+        hovermode="x unified",
+        legend=dict(orientation="h", y=1.1),
+        annotations=[unit_anno]
+    )
+    st.plotly_chart(fig_stack, use_container_width=True)
+    # ─────────────────────────────────────────────────────────
+
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
         st.markdown("##### 🔢 월별 상세 데이터표")
