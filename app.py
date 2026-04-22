@@ -292,15 +292,22 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 표 높이 고정용 CSS 주입
+            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 강력한 표 높이 고정용 CSS 주입
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <style>
-                .stTable table th, .stTable table td {
-                    padding: 12px 8px !important;
-                    height: 45px !important;
+                /* [핵심 수정] 어떤 상황에서도 표의 모든 행(tr)과 칸(td) 높이를 강제로 똑같이 맞춤 */
+                div[data-testid="stTable"] table tbody tr,
+                div[data-testid="stTable"] table tbody tr td,
+                div[data-testid="stTable"] table thead tr th,
+                table tbody tr, table tbody tr td {
+                    height: 48px !important;
+                    min-height: 48px !important;
+                    padding-top: 10px !important;
+                    padding-bottom: 10px !important;
                     vertical-align: middle !important;
+                    line-height: 1.5 !important;
                 }
                 </style>
                 """, unsafe_allow_html=True
@@ -402,7 +409,6 @@ def render_monthly_trend(df, unit, prefix):
                         p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
                         p_table["증감률(%)"] = np.nan
                         valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
-                        # [오류 수정 완료] table -> p_table 로 변경하여 Dimension 불일치 버그 해결
                         p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
 
                     total_row = p_table.sum(numeric_only=True)
