@@ -292,25 +292,27 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # [핵심 수정] 상단 데이터표와 완벽하게 동일한 콤팩트 사이즈 CSS 주입
+            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 완벽한 표 높이 고정용 CSS 주입
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <style>
+                /* [핵심 수정] 원본과 완벽하게 똑같은 얇은 여백과 강제 높이(line-height) 고정 */
+                div[data-testid="stTable"] table {
+                    table-layout: fixed !important;
+                    width: 100% !important;
+                }
                 div[data-testid="stTable"] table th,
                 div[data-testid="stTable"] table td {
-                    height: 28px !important;
-                    min-height: 28px !important;
-                    max-height: 28px !important;
-                    padding: 2px 8px !important;
+                    height: 35px !important;
+                    padding: 0px 8px !important;
+                    line-height: 35px !important;
                     vertical-align: middle !important;
-                    line-height: 1.2 !important;
                     white-space: nowrap !important;
+                    overflow: hidden !important;
                 }
                 div[data-testid="stTable"] table tr {
-                    height: 28px !important;
-                    min-height: 28px !important;
-                    max-height: 28px !important;
+                    height: 35px !important;
                 }
                 </style>
                 """, unsafe_allow_html=True
@@ -422,21 +424,26 @@ def render_monthly_trend(df, unit, prefix):
                         val_plan = p_table.loc["합계", "2026년 계획"]
                         p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
 
-                    p_table_print = p_table.copy()
-                    if p_table_print.index.name != "월":
-                        p_table_print.index.name = "월"
-
-                    numeric_cols = [col for col in p_table_print.columns if col not in ["증감률(%)"]]
+                    # [핵심 수정] 원본 표(st.dataframe)와 동일한 로직을 태우기 위해 reset_index()를 사용
+                    p_table = p_table.reset_index()
+                    numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
                     format_dict = {col: "{:,.0f}" for col in numeric_cols}
-                    if "증감률(%)" in p_table_print.columns:
+                    if "증감률(%)" in p_table.columns:
                         format_dict["증감률(%)"] = "{:,.1f}%"
 
-                    styled_df = p_table_print.style.format(format_dict, na_rep="-")
-                    styled_df = styled_df.apply(lambda row: ['background-color: #e6e6e6; font-weight: bold; color: black;' if row.name == '합계' else '' for _ in row], axis=1)
+                    styled_df = p_table.style.format(format_dict, na_rep="-")
+                    # 합계 배경색상을 원본 표와 동일하게 #1f497d 로 변경
+                    styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
                     
+                    styled = center_style(styled_df)
+                    # 인덱스 열을 깔끔하게 숨김 처리
+                    try:
+                        styled = styled.hide(axis="index")
+                    except:
+                        styled = styled.hide_index()
+                        
                     st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
-                    # [수정] 뚱뚱하게 만들었던 인라인 Styler 속성을 걷어내고 순수 center_style만 남김
-                    st.table(center_style(styled_df))
+                    st.table(styled)
 
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<br><br>", unsafe_allow_html=True)
