@@ -263,7 +263,7 @@ def render_monthly_trend(df, unit, prefix):
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────
-    # 보고서 일괄 출력 뷰어 (완전체 업데이트)
+    # 보고서 일괄 출력 뷰어
     # ─────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖨️ 보고서 일괄 출력 뷰어")
@@ -297,7 +297,6 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown(
                 """
                 <style>
-                /* [핵심 추가] 출력용 표의 세로칸 높이(padding/height)를 동일하게 강제 고정 */
                 .stTable table th, .stTable table td {
                     padding: 12px 8px !important;
                     height: 45px !important;
@@ -403,7 +402,8 @@ def render_monthly_trend(df, unit, prefix):
                         p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
                         p_table["증감률(%)"] = np.nan
                         valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
-                        p_table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+                        # [오류 수정 완료] table -> p_table 로 변경하여 Dimension 불일치 버그 해결
+                        p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
 
                     total_row = p_table.sum(numeric_only=True)
                     p_table.loc["합계"] = total_row
@@ -450,7 +450,6 @@ def render_monthly_trend(df, unit, prefix):
                     .stHorizontalBlock {
                         justify-content: center !important;
                     }
-                    /* PDF 저장하기 버튼을 인쇄물에서 숨김 */
                     #print-btn-container {
                         display: none !important;
                     }
