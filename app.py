@@ -365,7 +365,6 @@ def render_monthly_trend(df, unit, prefix):
                             p_table_list.append(y_act_tb)
                             p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-                # [추가] 표 데이터를 렌더링하기 위해 미리 생성
                 table_ready = False
                 styled = None
                 if prt_tbl and p_table_list:
@@ -403,9 +402,7 @@ def render_monthly_trend(df, unit, prefix):
                         styled = styled.hide_index()
                     table_ready = True
 
-                # [수정] 조건별 레이아웃 렌더링 로직 적용
                 if prt_line and prt_bar:
-                    # 1. 그래프 2개 모두 선택 시: 좌우로 그래프 배치, 표는 아래에 풀 사이즈로
                     col_left, col_right = st.columns(2)
                     with col_left:
                         if p_line_vals:
@@ -429,8 +426,8 @@ def render_monthly_trend(df, unit, prefix):
                         st.table(styled)
 
                 elif (prt_line or prt_bar) and prt_tbl:
-                    # 2. 그래프 1개 + 표 선택 시: 좌 그래프, 우 표 동일 사이즈 배치
-                    col_left, col_right = st.columns(2)
+                    # [핵심 수정] 2. 그래프 1개 + 표 선택 시: 좌측 그래프 공간을 1.2배 더 넓게 배정하여 시각적 안정감 확보
+                    col_left, col_right = st.columns([1.2, 1])
                     with col_left:
                         if prt_line:
                             if p_line_vals:
@@ -454,7 +451,6 @@ def render_monthly_trend(df, unit, prefix):
                             st.table(styled)
 
                 else:
-                    # 3. 그래프 1개만 선택하거나, 표만 1개 선택한 경우: 전체 넓이로 출력
                     if prt_line:
                         if p_line_vals:
                             min_y, max_y = min(p_line_vals), max(p_line_vals)
