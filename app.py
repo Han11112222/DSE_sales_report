@@ -292,20 +292,22 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # 상단 영역을 가리기 위한 마커 및 완벽한 칸 높이 고정 CSS
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <style>
                 div[data-testid="stTable"] table {
+                    table-layout: fixed !important;
                     width: 100% !important;
-                    margin-bottom: 0 !important;
                 }
                 div[data-testid="stTable"] table th,
                 div[data-testid="stTable"] table td {
                     height: 35px !important;
-                    padding: 4px 8px !important;
+                    padding: 0px 8px !important;
+                    line-height: 35px !important;
                     vertical-align: middle !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
                 }
                 div[data-testid="stTable"] table tr {
                     height: 35px !important;
@@ -426,10 +428,8 @@ def render_monthly_trend(df, unit, prefix):
                     if "증감률(%)" in p_table.columns:
                         format_dict["증감률(%)"] = "{:,.1f}%"
 
-                    # [핵심 수정] 빈칸에 점(·)이 안 찍히도록 na_rep="" (아무것도 출력하지 않음) 설정
                     styled_df = p_table.style.format(format_dict, na_rep="")
                     
-                    # [핵심 수정] 원본 표와 동일한 파란색(#1f497d) 배경, 흰색 굵은 글씨 명시적 적용
                     styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white; font-weight: bold;' if row['월'] == '합계' else '' for _ in row], axis=1)
                     
                     styled = center_style(styled_df)
@@ -444,6 +444,7 @@ def render_monthly_trend(df, unit, prefix):
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
+            # [핵심 수정] 인쇄 모드일 때 가로 폭을 1200px로 완벽히 고정하는 CSS 적용
             components.html(
                 """
                 <style>
@@ -453,11 +454,13 @@ def render_monthly_trend(df, unit, prefix):
                         margin-top: 0 !important;
                         padding-left: 0 !important;
                         padding-right: 0 !important;
-                        max-width: 100% !important;
-                        width: 100% !important;
+                        max-width: 1200px !important;
+                        width: 1200px !important;
+                        margin: 0 auto !important;
                     }
                     [data-testid="stAppViewContainer"] > section:nth-child(2) {
-                        width: 100% !important;
+                        max-width: 1200px !important;
+                        width: 1200px !important;
                         margin: 0 auto !important;
                     }
                     .stHorizontalBlock {
