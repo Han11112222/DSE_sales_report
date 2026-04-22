@@ -292,24 +292,20 @@ def render_monthly_trend(df, unit, prefix):
         if not selected_groups:
             st.warning("출력할 그룹을 최소 1개 이상 선택해주세요.")
         else:
-            # 인쇄 시 불필요한 상단 영역을 가리기 위한 마커 및 완벽한 표 높이 고정용 CSS 주입
+            # 상단 영역을 가리기 위한 마커 및 완벽한 칸 높이 고정 CSS
             st.markdown("<div id='preview-marker' style='display:none;'></div>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <style>
-                /* [핵심 수정] 원본과 완벽하게 똑같은 얇은 여백과 강제 높이(line-height) 고정 */
                 div[data-testid="stTable"] table {
-                    table-layout: fixed !important;
                     width: 100% !important;
+                    margin-bottom: 0 !important;
                 }
                 div[data-testid="stTable"] table th,
                 div[data-testid="stTable"] table td {
                     height: 35px !important;
-                    padding: 0px 8px !important;
-                    line-height: 35px !important;
+                    padding: 4px 8px !important;
                     vertical-align: middle !important;
-                    white-space: nowrap !important;
-                    overflow: hidden !important;
                 }
                 div[data-testid="stTable"] table tr {
                     height: 35px !important;
@@ -424,19 +420,19 @@ def render_monthly_trend(df, unit, prefix):
                         val_plan = p_table.loc["합계", "2026년 계획"]
                         p_table.loc["합계", "증감률(%)"] = (val_diff / val_plan * 100) if val_plan != 0 else np.nan
 
-                    # [핵심 수정] 원본 표(st.dataframe)와 동일한 로직을 태우기 위해 reset_index()를 사용
                     p_table = p_table.reset_index()
                     numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
                     format_dict = {col: "{:,.0f}" for col in numeric_cols}
                     if "증감률(%)" in p_table.columns:
                         format_dict["증감률(%)"] = "{:,.1f}%"
 
-                    styled_df = p_table.style.format(format_dict, na_rep="-")
-                    # 합계 배경색상을 원본 표와 동일하게 #1f497d 로 변경
-                    styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
+                    # [핵심 수정] 빈칸에 점(·)이 안 찍히도록 na_rep="" (아무것도 출력하지 않음) 설정
+                    styled_df = p_table.style.format(format_dict, na_rep="")
+                    
+                    # [핵심 수정] 원본 표와 동일한 파란색(#1f497d) 배경, 흰색 굵은 글씨 명시적 적용
+                    styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white; font-weight: bold;' if row['월'] == '합계' else '' for _ in row], axis=1)
                     
                     styled = center_style(styled_df)
-                    # 인덱스 열을 깔끔하게 숨김 처리
                     try:
                         styled = styled.hide(axis="index")
                     except:
