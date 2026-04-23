@@ -266,21 +266,16 @@ def render_monthly_trend(df, unit, prefix):
 
 
     # ─────────────────────────────────────────────────────────
-    # [수정 영역] 타임 시리즈 그래프 (스택 그래프 상단)
+    # [수정 영역] 타임 시리즈 그래프 (토글 제거)
     # ─────────────────────────────────────────────────────────
     st.markdown("##### 📈 전체 용도별 구성비 추이 (타임시리즈)")
     
-    ts_col1, ts_col2 = st.columns([3, 1])
-    with ts_col1:
-        ts_years = st.multiselect(
-            "타임 시리즈 연도 선택 (별도)", 
-            options=[2022, 2023, 2024, 2025, 2026], 
-            default=[2023, 2024, 2025, 2026], 
-            key=f"{prefix}_ts_years"
-        )
-    with ts_col2:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        ts_toggle = st.toggle("타임 시리즈 (연속 기간) 활성화", value=True, key=f"{prefix}_ts_toggle")
+    ts_years = st.multiselect(
+        "타임 시리즈 연도 선택 (별도)", 
+        options=[2022, 2023, 2024, 2025, 2026], 
+        default=[2023, 2024, 2025, 2026], 
+        key=f"{prefix}_ts_years"
+    )
         
     if ts_years:
         # 실적 데이터만 필터링 (현재 시점인 2026.03까지만 표출됨)
@@ -289,39 +284,23 @@ def render_monthly_trend(df, unit, prefix):
         if not ts_df.empty:
             fig_ts = go.Figure()
             
-            if ts_toggle:
-                # X축: 전체 기간 (YYYY.MM) 연속 표출
-                ts_df["년월"] = ts_df["연"].astype(str) + "." + ts_df["월"].astype(str).str.zfill(2)
-                ts_grp_df = ts_df.groupby(["년월", "그룹"])["값"].sum().reset_index()
-                
-                # 안전한 비율 계산을 위해 pivot 활용
-                ts_pivot = ts_grp_df.pivot(index="년월", columns="그룹", values="값").fillna(0)
-                ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
-                
-                for grp in GROUP_ORDER:
-                    if grp in ts_ratio.columns:
-                        # shape='spline'과 stackgroup='one'으로 세련된 누적 면적 그래프 구현
-                        fig_ts.add_trace(go.Scatter(
-                            x=ts_ratio.index, y=ts_ratio[grp], mode='lines', name=grp,
-                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
-                            stackgroup='one'
-                        ))
-                fig_ts.update_layout(xaxis=dict(title="년월 (YYYY.MM)", type='category', tickangle=-45))
-            else:
-                # X축: 1월~12월 변경 (선택된 연도의 월별 그룹 합산)
-                ts_grp_df = ts_df.groupby(["월", "그룹"])["값"].sum().reset_index()
-                
-                ts_pivot = ts_grp_df.pivot(index="월", columns="그룹", values="값").fillna(0)
-                ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
-                
-                for grp in GROUP_ORDER:
-                    if grp in ts_ratio.columns:
-                        fig_ts.add_trace(go.Scatter(
-                            x=ts_ratio.index, y=ts_ratio[grp], mode='lines', name=grp,
-                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
-                            stackgroup='one'
-                        ))
-                fig_ts.update_layout(xaxis=dict(title="월", dtick=1))
+            # X축: 전체 기간 (YYYY.MM) 연속 표출
+            ts_df["년월"] = ts_df["연"].astype(str) + "." + ts_df["월"].astype(str).str.zfill(2)
+            ts_grp_df = ts_df.groupby(["년월", "그룹"])["값"].sum().reset_index()
+            
+            # 안전한 비율 계산을 위해 pivot 활용
+            ts_pivot = ts_grp_df.pivot(index="년월", columns="그룹", values="값").fillna(0)
+            ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
+            
+            for grp in GROUP_ORDER:
+                if grp in ts_ratio.columns:
+                    # shape='spline'과 stackgroup='one'으로 세련된 누적 면적 그래프 구현
+                    fig_ts.add_trace(go.Scatter(
+                        x=ts_ratio.index, y=ts_ratio[grp], mode='lines', name=grp,
+                        line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
+                        stackgroup='one'
+                    ))
+            fig_ts.update_layout(xaxis=dict(title="년월 (YYYY.MM)", type='category', tickangle=-45))
                 
             fig_ts.update_layout(
                 height=450,
