@@ -96,6 +96,7 @@ def load_data(excel_bytes):
     sheets = {name: xls.parse(name) for name in ["계획_부피", "실적_부피", "계획_열량", "실적_열량"] if name in xls.sheet_names}
     long_dict = {}
     
+    # 열량을 먼저 딕셔너리에 담아 첫 번째 탭으로 오게 순서 변경
     if "계획_열량" in sheets and "실적_열량" in sheets:
         long_dict["열량"] = make_long(sheets["계획_열량"], sheets["실적_열량"])
         
@@ -265,9 +266,9 @@ def render_monthly_trend(df, unit, prefix):
 
 
     # ─────────────────────────────────────────────────────────
-    # [추가 영역] 타임 시리즈 그래프 (스택 그래프 상단)
+    # [수정 영역] 타임 시리즈 그래프 (스택 그래프 상단)
     # ─────────────────────────────────────────────────────────
-    st.markdown("##### 📈 전체 용도별 판매량 추이 (타임시리즈)")
+    st.markdown("##### 📈 전체 용도별 구성비 추이 (타임시리즈)")
     
     ts_col1, ts_col2 = st.columns([3, 1])
     with ts_col1:
@@ -282,7 +283,7 @@ def render_monthly_trend(df, unit, prefix):
         ts_toggle = st.toggle("타임 시리즈 (연속 기간) 활성화", value=True, key=f"{prefix}_ts_toggle")
         
     if ts_years:
-        # 실적 데이터만 필터링 (현재 시점인 2026.03까지만 자연스럽게 표출됨)
+        # 실적 데이터만 필터링 (현재 시점인 2026.03까지만 표출됨)
         ts_df = df[(df["연"].isin(ts_years)) & (df["계획/실적"] == "실적")].copy()
         
         if not ts_df.empty:
@@ -292,33 +293,39 @@ def render_monthly_trend(df, unit, prefix):
                 # X축: 전체 기간 (YYYY.MM) 연속 표출
                 ts_df["년월"] = ts_df["연"].astype(str) + "." + ts_df["월"].astype(str).str.zfill(2)
                 ts_grp_df = ts_df.groupby(["년월", "그룹"])["값"].sum().reset_index()
-                ts_grp_df = ts_grp_df.sort_values("년월")
+                
+                # 안전한 비율 계산을 위해 pivot 활용
+                ts_pivot = ts_grp_df.pivot(index="년월", columns="그룹", values="값").fillna(0)
+                ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
                 
                 for grp in GROUP_ORDER:
-                    g_df = ts_grp_df[ts_grp_df["그룹"] == grp]
-                    if not g_df.empty:
+                    if grp in ts_ratio.columns:
+                        # shape='spline'과 stackgroup='one'으로 세련된 누적 면적 그래프 구현
                         fig_ts.add_trace(go.Scatter(
-                            x=g_df["년월"], y=g_df["값"], mode='markers+lines', name=grp,
-                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=2)
+                            x=ts_ratio.index, y=ts_ratio[grp], mode='lines', name=grp,
+                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
+                            stackgroup='one'
                         ))
                 fig_ts.update_layout(xaxis=dict(title="년월 (YYYY.MM)", type='category', tickangle=-45))
             else:
                 # X축: 1월~12월 변경 (선택된 연도의 월별 그룹 합산)
                 ts_grp_df = ts_df.groupby(["월", "그룹"])["값"].sum().reset_index()
-                ts_grp_df = ts_grp_df.sort_values("월")
+                
+                ts_pivot = ts_grp_df.pivot(index="월", columns="그룹", values="값").fillna(0)
+                ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
                 
                 for grp in GROUP_ORDER:
-                    g_df = ts_grp_df[ts_grp_df["그룹"] == grp]
-                    if not g_df.empty:
+                    if grp in ts_ratio.columns:
                         fig_ts.add_trace(go.Scatter(
-                            x=g_df["월"], y=g_df["값"], mode='markers+lines', name=grp,
-                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=2)
+                            x=ts_ratio.index, y=ts_ratio[grp], mode='lines', name=grp,
+                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
+                            stackgroup='one'
                         ))
                 fig_ts.update_layout(xaxis=dict(title="월", dtick=1))
                 
             fig_ts.update_layout(
                 height=450,
-                yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"),
+                yaxis=dict(title="구성비 (%)", range=[0, 100], tickformat=".0f", ticksuffix="%"),
                 hovermode="x unified",
                 legend=dict(orientation="h", y=1.1)
             )
