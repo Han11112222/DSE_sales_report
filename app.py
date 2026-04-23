@@ -208,7 +208,7 @@ def render_monthly_trend(df, unit, prefix):
             annotations=[unit_anno]
         )
         
-    st.plotly_chart(fig_line, use_container_width=True)
+    st.plotly_chart(fig_line, use_container_width=True, key=f"{prefix}_main_fig_line")
 
     st.markdown(f"##### 📊 {sel_group} 연도별 동월 비교 (막대그래프)")
     fig_bar.update_layout(
@@ -220,7 +220,7 @@ def render_monthly_trend(df, unit, prefix):
         legend=dict(orientation="h", y=1.1),
         annotations=[unit_anno]
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, use_container_width=True, key=f"{prefix}_main_fig_bar")
 
     # ─────────────────────────────────────────────────────────
     # [수정 영역] 연간 구성비 추이 그래프 (꺾은선) & 용도별 구성비 (스택그래프)
@@ -260,18 +260,17 @@ def render_monthly_trend(df, unit, prefix):
         hovermode="x unified", 
         legend=dict(orientation="h", y=1.1)
     )
-    st.plotly_chart(fig_ratio_line, use_container_width=True)
+    st.plotly_chart(fig_ratio_line, use_container_width=True, key=f"{prefix}_main_fig_ratio_line")
 
     st.markdown(f"##### 📊 연간 용도별 구성비 (스택그래프)")
     fig_stack = go.Figure()
     
-    # 연간 구성비 스택은 항상 모든 용도를 다 보여주는 것이 목적이므로 GROUP_ORDER 전체 사용
+    # [요청 반영] 2026년 계획 제외
     x_labels = []
     annual_totals = {}
     for year in sorted(sel_years):
         if year == 2026:
-            x_labels.extend(["2026년 계획", "2026년 실적"])
-            annual_totals["2026년 계획"] = df[(df["연"] == 2026) & (df["계획/실적"] == "계획")]["값"].sum()
+            x_labels.append("2026년 실적")
             annual_totals["2026년 실적"] = df[(df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
         else:
             label = f"{year}년 실적"
@@ -281,9 +280,7 @@ def render_monthly_trend(df, unit, prefix):
     for grp in GROUP_ORDER:
         grp_y = []
         for label in x_labels:
-            if label == "2026년 계획":
-                val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "계획")]["값"].sum()
-            elif label == "2026년 실적":
+            if label == "2026년 실적":
                 val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
             else:
                 y_int = int(label[:4])
@@ -311,7 +308,7 @@ def render_monthly_trend(df, unit, prefix):
         hovermode="x unified",
         legend=dict(orientation="h", y=1.1)
     )
-    st.plotly_chart(fig_stack, use_container_width=True)
+    st.plotly_chart(fig_stack, use_container_width=True, key=f"{prefix}_main_fig_stack")
     # ─────────────────────────────────────────────────────────
 
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
@@ -362,12 +359,14 @@ def render_monthly_trend(df, unit, prefix):
     st.caption("항목과 그룹을 체크하고 버튼을 누르면 선택한 내용만 인쇄용 미리보기 화면에 나열됩니다.")
 
     st.markdown("##### 1. 출력 항목 선택")
-    chk_col1, chk_col2, chk_col3 = st.columns(3)
+    chk_col1, chk_col2, chk_col3, chk_col4 = st.columns(4)
     with chk_col1:
         prt_line = st.checkbox("연간추이 그래프", value=True, key=f"{prefix}_prt_line")
     with chk_col2:
         prt_bar = st.checkbox("연도별 동월 비교 그래프", value=True, key=f"{prefix}_prt_bar")
     with chk_col3:
+        prt_ratio = st.checkbox("전체 연간 구성비 추이 그래프", value=True, key=f"{prefix}_prt_ratio")
+    with chk_col4:
         prt_tbl = st.checkbox("월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
 
     st.markdown("##### 2. 출력 그룹 선택")
@@ -523,11 +522,7 @@ def render_monthly_trend(df, unit, prefix):
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                         st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
 
-                    if table_ready:
-                        st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
-                        st.table(styled)
-
-                elif (prt_line or prt_bar) and prt_tbl:
+                elif prt_line or prt_bar:
                     col_left, col_right = st.columns([1.8, 1])
                     with col_left:
                         if prt_line:
@@ -541,37 +536,89 @@ def render_monthly_trend(df, unit, prefix):
                             
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
-                        else:
+                        elif prt_bar:
                             p_fig_bar.update_layout(barmode='group', bargap=0.36, height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
                     
                     with col_right:
-                        if table_ready:
+                        if table_ready and prt_tbl:
                             st.markdown(f"<div style='text-align: center; width: 100%;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
                             st.table(styled)
 
-                else:
-                    if prt_line:
-                        if p_line_vals:
-                            min_y, max_y = min(p_line_vals), max(p_line_vals)
-                            y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                            y_max_s = max_y * 1.05
-                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                # 구성비 인쇄 영역 추가
+                if prt_ratio:
+                    p_ratio_line_df = p_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
+                    p_ratio_line_df = pd.merge(p_ratio_line_df, total_monthly, on=["연", "월", "계획/실적"])
+                    p_ratio_line_df["비중"] = np.where(p_ratio_line_df["총합"] > 0, (p_ratio_line_df["값"] / p_ratio_line_df["총합"]) * 100, 0)
+
+                    p_fig_ratio_line = go.Figure()
+                    for year in sorted(sel_years):
+                        if year == 2026:
+                            y26_plan_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "계획")]
+                            if not y26_plan_r.empty:
+                                c_plan = LINE_COLOR_MAP["2026년 계획"]
+                                p_fig_ratio_line.add_trace(go.Scatter(x=y26_plan_r["월"], y=y26_plan_r["비중"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                            
+                            y26_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "실적") & (p_ratio_line_df["월"] <= 3)]
+                            if not y26_act_r.empty:
+                                c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                                p_fig_ratio_line.add_trace(go.Scatter(x=y26_act_r["월"], y=y26_act_r["비중"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
                         else:
-                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                        
-                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
-                        st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_{prefix}_{print_grp}")
+                            y_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == year) & (p_ratio_line_df["계획/실적"] == "실적")]
+                            if not y_act_r.empty:
+                                key_name = f"{year}년 실적"
+                                c = LINE_COLOR_MAP.get(key_name, "#808080")
+                                p_fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
 
-                    if prt_bar:
-                        p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
-                        st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_{prefix}_{print_grp}")
+                    p_fig_stack = go.Figure()
+                    p_x_labels = []
+                    p_annual_totals = {}
+                    for year in sorted(sel_years):
+                        if year == 2026:
+                            p_x_labels.append("2026년 실적")
+                            p_annual_totals["2026년 실적"] = df[(df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
+                        else:
+                            label = f"{year}년 실적"
+                            p_x_labels.append(label)
+                            p_annual_totals[label] = df[(df["연"] == year) & (df["계획/실적"] == "실적")]["값"].sum()
+                            
+                    for grp in GROUP_ORDER:
+                        grp_y = []
+                        for label in p_x_labels:
+                            if label == "2026년 실적":
+                                val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
+                            else:
+                                y_int = int(label[:4])
+                                val = df[(df["그룹"] == grp) & (df["연"] == y_int) & (df["계획/실적"] == "실적")]["값"].sum()
+                            
+                            tot = p_annual_totals.get(label, 0)
+                            ratio = (val / tot * 100) if tot > 0 else 0
+                            grp_y.append(ratio)
+                            
+                        p_fig_stack.add_trace(go.Bar(
+                            x=p_x_labels, 
+                            y=grp_y, 
+                            name=grp, 
+                            marker_color=COLOR_MAP.get(grp, "#808080"),
+                            text=[f"{v:.1f}%" if v >= 3.0 else "" for v in grp_y],
+                            textposition='inside',
+                            insidetextanchor='middle'
+                        ))
 
-                    if table_ready:
-                        st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
-                        st.table(styled)
+                    r_col1, r_col2 = st.columns(2)
+                    with r_col1:
+                        p_fig_ratio_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title="구성비 (%)", range=[0, 105], tickformat=".0f", ticksuffix="%"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
+                        st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 구성비 추이 그래프</b></div>", unsafe_allow_html=True)
+                        st.plotly_chart(p_fig_ratio_line, use_container_width=True, key=f"prt_ratio_line_chart_{prefix}_{print_grp}")
+                    with r_col2:
+                        p_fig_stack.update_layout(barmode='stack', bargap=0.4, height=450, xaxis=dict(title="연도 및 구분"), yaxis=dict(title="구성비 (%)", range=[0, 100], tickformat=".0f", ticksuffix="%"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
+                        st.markdown(f"<div style='text-align: center;'><b>■ 연간 용도별 구성비 (스택그래프)</b></div>", unsafe_allow_html=True)
+                        st.plotly_chart(p_fig_stack, use_container_width=True, key=f"prt_ratio_stack_chart_{prefix}_{print_grp}")
+
+                if table_ready and prt_tbl and not (prt_line or prt_bar):
+                    st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
+                    st.table(styled)
 
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.markdown("<br><br>", unsafe_allow_html=True)
