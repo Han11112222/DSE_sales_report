@@ -31,11 +31,11 @@ DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
 # 요청하신 그룹 순서
 GROUP_ORDER = ["가정용", "산업용", "업무용", "영업용", "기타"]
 
-# [수정포인트] 산업용과 업무용 색상 스왑
+# 산업용과 업무용 색상 스왑 완료
 COLOR_MAP = {
     "가정용": "#4c72b0",
-    "산업용": "#e07a5f",  # 기존 업무용 색상으로 변경
-    "업무용": "#9ebcda",  # 기존 산업용 색상으로 변경
+    "산업용": "#e07a5f",  
+    "업무용": "#9ebcda",  
     "영업용": "#e6c253",
     "기타": "#8cce8b"
 }
@@ -96,7 +96,6 @@ def load_data(excel_bytes):
     sheets = {name: xls.parse(name) for name in ["계획_부피", "실적_부피", "계획_열량", "실적_열량"] if name in xls.sheet_names}
     long_dict = {}
     
-    # 열량을 먼저 딕셔너리에 담아 첫 번째 탭으로 오게 순서 변경
     if "계획_열량" in sheets and "실적_열량" in sheets:
         long_dict["열량"] = make_long(sheets["계획_열량"], sheets["실적_열량"])
         
@@ -270,7 +269,6 @@ def render_monthly_trend(df, unit, prefix):
     # ─────────────────────────────────────────────────────────
     st.markdown("##### 📈 전체 용도별 구성비 추이 (타임시리즈)")
     
-    # [수정포인트] 타임시리즈 상단 우측에 "구성비 표기" 토글 추가
     ts_col1, ts_col2 = st.columns([3, 1])
     with ts_col1:
         ts_years = st.multiselect(
@@ -297,20 +295,33 @@ def render_monthly_trend(df, unit, prefix):
             
             for grp in GROUP_ORDER:
                 if grp in ts_ratio.columns:
-                    # [수정포인트] 토글 활성화 시 그래프 면적 경계에 텍스트 표기
+                    # [수정포인트] 3, 6, 9, 12월만 텍스트 노출되도록 필터링
                     mode_str = 'lines+text' if show_ts_ratio else 'lines'
-                    text_arr = [f"{v:.1f}%" if v >= 3.0 else "" for v in ts_ratio[grp]] if show_ts_ratio else None
+                    text_arr = []
+                    if show_ts_ratio:
+                        for m_str, v in zip(ts_ratio.index, ts_ratio[grp]):
+                            # m_str 예: "2023.03" -> 월 부분 추출
+                            month_val = int(m_str.split('.')[1])
+                            if month_val in [3, 6, 9, 12] and v >= 3.0:
+                                text_arr.append(f"{v:.1f}%")
+                            else:
+                                text_arr.append("")
+                    else:
+                        text_arr = None
                     
+                    # [수정포인트] 불투명도를 높여 더 진하게 표현 (10% 증가)
                     fig_ts.add_trace(go.Scatter(
                         x=ts_ratio.index, y=ts_ratio[grp], mode=mode_str, name=grp,
                         line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
                         stackgroup='one',
+                        fillcolor=f"rgba({tuple(int(COLOR_MAP.get(grp, '#000')[i:i+2], 16) for i in (1, 3, 5))[0]}, "
+                                  f"{tuple(int(COLOR_MAP.get(grp, '#000')[i:i+2], 16) for i in (1, 3, 5))[1]}, "
+                                  f"{tuple(int(COLOR_MAP.get(grp, '#000')[i:i+2], 16) for i in (1, 3, 5))[2]}, 0.9)", # 투명도 0.9로 진하게
                         text=text_arr,
                         textposition='top center',
                         textfont=dict(size=12, color="#333")
                     ))
             
-            # [수정포인트] 2026년이 포함되어 있다면 '2026.04' 카테고리를 강제 추가하여 빈 공간 확보
             all_categories = list(ts_ratio.index)
             if 2026 in ts_years and "2026.04" not in all_categories:
                 all_categories.append("2026.04")
@@ -356,15 +367,16 @@ def render_monthly_trend(df, unit, prefix):
             ratio = (val / tot * 100) if tot > 0 else 0
             grp_y.append(ratio)
             
+        # [수정포인트] 텍스트 크기를 20% 추가 확대 (19 -> 23pt 근처) 및 자동 위치 설정
         fig_stack.add_trace(go.Bar(
             x=x_labels, 
             y=grp_y, 
             name=grp, 
             marker_color=COLOR_MAP.get(grp, "#808080"),
-            text=[f"{v:.1f}%" if v >= 3.0 else "" for v in grp_y],
-            textposition='inside',
+            text=[f"{v:.1f}%" if v >= 1.0 else "" for v in grp_y],
+            textposition='auto', # 공간 부족 시 자동으로 위치 최적화
             insidetextanchor='middle',
-            textfont=dict(size=19)  # [수정포인트] 기존 대비 20% 추가 확대 (16 -> 19)
+            textfont=dict(size=23) # 글자 크기 산업용 레이블 수준으로 대폭 확대
         ))
 
     fig_stack.update_layout(
@@ -451,29 +463,13 @@ def render_monthly_trend(df, unit, prefix):
             st.markdown(
                 """
                 <style>
-                div[data-testid="stTable"] table {
-                    table-layout: auto !important;
-                    width: 100% !important;
+                div[data-testid="stTable"] table { table-layout: auto !important; width: 100% !important; }
+                div[data-testid="stTable"] table th, div[data-testid="stTable"] table td {
+                    height: 35px !important; padding: 0px 8px !important; line-height: 35px !important;
+                    vertical-align: middle !important; white-space: nowrap !important; overflow: hidden !important; font-size: 110% !important;
                 }
-                div[data-testid="stTable"] table th,
-                div[data-testid="stTable"] table td {
-                    height: 35px !important;
-                    padding: 0px 8px !important;
-                    line-height: 35px !important;
-                    vertical-align: middle !important;
-                    white-space: nowrap !important;
-                    overflow: hidden !important;
-                    font-size: 110% !important;
-                }
-                div[data-testid="stTable"] table tr {
-                    height: 35px !important;
-                }
-                div[data-testid="stTable"] table th:first-child,
-                div[data-testid="stTable"] table td:first-child {
-                    width: 60px !important;
-                    min-width: 60px !important;
-                    max-width: 60px !important;
-                }
+                div[data-testid="stTable"] table tr { height: 35px !important; }
+                div[data-testid="stTable"] table th:first-child, div[data-testid="stTable"] table td:first-child { width: 60px !important; }
                 </style>
                 """, unsafe_allow_html=True
             )
@@ -482,216 +478,113 @@ def render_monthly_trend(df, unit, prefix):
             for print_grp in selected_groups:
                 st.markdown(f"<div class='print-page-container' style='width: 100%; display: flex; flex-direction: column; align-items: center; page-break-inside: avoid; break-inside: avoid;'>", unsafe_allow_html=True)
                 st.markdown(f"<h2 style='text-align: center; color: #1f497d; margin-top: 10px;'>[{print_grp}] 판매량 분석 보고</h2>", unsafe_allow_html=True)
-
                 p_df = df[df["그룹"] == print_grp] if print_grp != "전체" else df
-
-                p_fig_line = go.Figure()
-                p_fig_bar = go.Figure()
-                p_table_list = []
-                p_line_vals = []
+                p_fig_line, p_fig_bar, p_table_list, p_line_vals = go.Figure(), go.Figure(), [], []
 
                 for year in sorted(sel_years):
                     if year == 2026:
                         y26_plan = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
                         y26_act = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "실적") & (p_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
-
                         if not y26_plan.empty:
-                            c_plan = LINE_COLOR_MAP["2026년 계획"]
-                            p_fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                            p_fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=LINE_COLOR_MAP["2026년 계획"], width=2.5, dash='dot')))
                             p_line_vals.extend(y26_plan["값"].tolist())
-                            y26_plan_tb = y26_plan.copy()
-                            y26_plan_tb["표_컬럼"] = "2026년 계획"
-                            p_table_list.append(y26_plan_tb)
-                            p_fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
-
+                            p_table_list.append(y26_plan.assign(표_컬럼="2026년 계획"))
+                            p_fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=LINE_COLOR_MAP["2026년 계획"]))
                         if not y26_act.empty:
-                            c_act26 = LINE_COLOR_MAP["2026년 실적"]
-                            p_fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                            p_fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=LINE_COLOR_MAP["2026년 실적"], width=2.5)))
                             p_line_vals.extend(y26_act["값"].tolist())
-                            y26_act_tb = y26_act.copy()
-                            y26_act_tb["표_컬럼"] = "2026년 실적"
-                            p_table_list.append(y26_act_tb)
-                            p_fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
-
+                            p_table_list.append(y26_act.assign(표_컬럼="2026년 실적"))
+                            p_fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=LINE_COLOR_MAP["2026년 실적"]))
                     else:
-                        y_act = p_df[(p_df["연"] == year) & (p_df["계획/실적"] == "실적")]
-                        y_act_grp = y_act.groupby("월")["값"].sum().reset_index()
-
+                        y_act_grp = p_df[(p_df["연"] == year) & (p_df["계획/실적"] == "실적")].groupby("월")["값"].sum().reset_index()
                         if not y_act_grp.empty:
-                            key_name = f"{year}년 실적"
-                            c = LINE_COLOR_MAP.get(key_name, "#808080")
-                            p_fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
+                            k_name = f"{year}년 실적"
+                            p_fig_line.add_trace(go.Scatter(x=y_act_grp["월"], y=y_act_grp["값"], mode='markers+lines', name=k_name, line=dict(color=LINE_COLOR_MAP.get(k_name, "#808080"), width=2.5)))
                             p_line_vals.extend(y_act_grp["값"].tolist())
-                            y_act_tb = y_act_grp.copy()
-                            y_act_tb["표_컬럼"] = key_name
-                            p_table_list.append(y_act_tb)
-                            p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
+                            p_table_list.append(y_act_grp.assign(표_컬럼=k_name))
+                            p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=LINE_COLOR_MAP.get(k_name, "#808080")))
 
-                table_ready = False
-                styled = None
+                table_ready, styled = False, None
                 if prt_tbl and p_table_list:
-                    t_df = pd.concat(p_table_list, ignore_index=True)
-                    p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
-
+                    p_table = pd.concat(p_table_list).pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
                     if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
                         p_table["증감량(차이)"] = p_table["2026년 실적"] - p_table["2026년 계획"]
                         p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
-                        p_table["증감률(%)"] = np.nan
-                        valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
-                        p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+                        p_table["증감률(%)"] = (p_table["증감량(차이)"] / p_table["2026년 계획"] * 100).where(p_table.index <= 3)
                         ytd_p_sum = p_table.loc[p_table.index <= 3, "2026년 계획"].sum()
-
-                    total_row = p_table.sum(numeric_only=True)
-                    p_table.loc["합계"] = total_row
-
-                    if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
-                        val_diff = p_table.loc["합계", "증감량(차이)"]
-                        p_table.loc["합계", "증감률(%)"] = (val_diff / ytd_p_sum * 100) if ytd_p_sum != 0 else np.nan
-
-                    p_table = p_table.reset_index()
-                    numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
-                    format_dict = {col: "{:,.0f}" for col in numeric_cols}
-                    if "증감률(%)" in p_table.columns:
-                        format_dict["증감률(%)"] = "{:,.1f}%"
-
-                    styled_df = p_table.style.format(format_dict, na_rep="")
-                    styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white; font-weight: bold;' if row['월'] == '합계' else '' for _ in row], axis=1)
-                    
-                    styled = center_style(styled_df)
-                    try:
-                        styled = styled.hide(axis="index")
-                    except:
-                        styled = styled.hide_index()
+                        p_table.loc["합계"] = p_table.sum(numeric_only=True)
+                        p_table.loc["합계", "증감률(%)"] = (p_table.loc["합계", "증감량(차이)"] / ytd_p_sum * 100) if ytd_p_sum != 0 else np.nan
+                    else:
+                        p_table.loc["합계"] = p_table.sum(numeric_only=True)
+                    styled = p_table.reset_index().style.format({c: "{:,.0f}" for c in p_table.columns if c != "증감률(%)"}).format({"증감률(%)": "{:,.1f}%"}, na_rep="").apply(lambda r: ['background-color: #1f497d; color: white; font-weight: bold;' if r['월'] == '합계' else '' for _ in r], axis=1)
                     table_ready = True
 
                 if prt_line and prt_bar:
-                    col_left, col_right = st.columns(2)
-                    with col_left:
-                        if p_line_vals:
-                            min_y, max_y = min(p_line_vals), max(p_line_vals)
-                            y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                            y_max_s = max_y * 1.05
-                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                        else:
-                            p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                    col_l, col_r = st.columns(2)
+                    with col_l:
+                        p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
-                        st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
-                    with col_right:
-                        p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
+                        st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_{prefix}_{print_grp}")
+                    with col_r:
+                        p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
-                        st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
-
+                        st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_{prefix}_{print_grp}")
                 elif prt_line or prt_bar:
-                    col_left, col_right = st.columns([1.8, 1])
-                    with col_left:
-                        if prt_line:
-                            if p_line_vals:
-                                min_y, max_y = min(p_line_vals), max(p_line_vals)
-                                y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                                y_max_s = max_y * 1.05
-                                p_fig_line.update_layout(height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                            else:
-                                p_fig_line.update_layout(height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                            st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
-                            st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
-                        elif prt_bar:
-                            p_fig_bar.update_layout(barmode='group', bargap=0.36, height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                            st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
-                            st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
+                    p_f = p_fig_line if prt_line else p_fig_bar
+                    p_f.update_layout(height=550, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
+                    st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] {'연간 추이' if prt_line else '동월 비교'} 그래프</b></div>", unsafe_allow_html=True)
+                    st.plotly_chart(p_f, use_container_width=True)
 
                 if prt_ratio:
-                    p_ratio_line_df = p_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
-                    p_ratio_line_df = pd.merge(p_ratio_line_df, total_monthly, on=["연", "월", "계획/실적"])
-                    p_ratio_line_df["비중"] = np.where(p_ratio_line_df["총합"] > 0, (p_ratio_line_df["값"] / p_ratio_line_df["총합"]) * 100, 0)
-                    
-                    p_fig_ratio_line = go.Figure()
+                    p_r_df = p_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
+                    p_r_df = pd.merge(p_r_df, total_monthly, on=["연", "월", "계획/실적"])
+                    p_r_df["비중"] = np.where(p_r_df["총합"] > 0, (p_r_df["값"] / p_r_df["총합"]) * 100, 0)
+                    p_fig_r = go.Figure()
                     for year in sorted(sel_years):
                         if year == 2026:
-                            y26_plan_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "계획")]
-                            if not y26_plan_r.empty:
-                                c_plan = LINE_COLOR_MAP["2026년 계획"]
-                                p_fig_ratio_line.add_trace(go.Scatter(x=y26_plan_r["월"], y=y26_plan_r["비중"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
-                            y26_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "실적") & (p_ratio_line_df["월"] <= 3)]
-                            if not y26_act_r.empty:
-                                c_act26 = LINE_COLOR_MAP["2026년 실적"]
-                                p_fig_ratio_line.add_trace(go.Scatter(x=y26_act_r["월"], y=y26_act_r["비중"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                            for lbl, act_p in [("2026년 계획", "계획"), ("2026년 실적", "실적")]:
+                                d = p_r_df[(p_r_df["연"] == 2026) & (p_r_df["계획/실적"] == act_p) & (p_r_df["월"] <= (3 if act_p=="실적" else 12))]
+                                if not d.empty: p_fig_r.add_trace(go.Scatter(x=d["월"], y=d["비중"], mode='markers+lines', name=lbl, line=dict(color=LINE_COLOR_MAP[lbl], width=2.5, dash='dot' if "계획" in lbl else 'solid')))
                         else:
-                            y_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == year) & (p_ratio_line_df["계획/실적"] == "실적")]
-                            if not y_act_r.empty:
-                                key_name = f"{year}년 실적"
-                                c = LINE_COLOR_MAP.get(key_name, "#808080")
-                                p_fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
-                    
-                    if not p_ratio_line_df["비중"].empty:
-                        r_min, r_max = p_ratio_line_df["비중"].min(), p_ratio_line_df["비중"].max()
-                        p_y_range = [max(0, r_min * 0.9), min(100, r_max * 1.1)]
-                    else:
-                        p_y_range = [0, 105]
-
-                    p_fig_ratio_line.update_layout(
-                        height=450, 
-                        xaxis=dict(dtick=1, title="월"), 
-                        yaxis=dict(title="구성비 (%)", range=p_y_range, tickformat=".1f", ticksuffix="%"), 
-                        hovermode="x unified", 
-                        legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center')
-                    )
-
+                            d = p_r_df[(p_r_df["연"] == year) & (p_r_df["계획/실적"] == "실적")]
+                            if not d.empty: p_fig_r.add_trace(go.Scatter(x=d["월"], y=d["비중"], mode='markers+lines', name=f"{year}년 실적", line=dict(color=LINE_COLOR_MAP.get(f"{year}년 실적", "#808080"), width=2.5)))
+                    p_fig_r.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title="구성비 (%)", range=[max(0, p_r_df["비중"].min()*0.9), min(100, p_r_df["비중"].max()*1.1)], tickformat=".1f", ticksuffix="%"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
                     st.markdown(f"<div style='text-align: center; margin-top: 30px;'><b>■ [{print_grp}] 연간 구성비 추이 그래프</b></div>", unsafe_allow_html=True)
-                    st.plotly_chart(p_fig_ratio_line, use_container_width=True, key=f"prt_ratio_line_chart_{prefix}_{print_grp}")
+                    st.plotly_chart(p_fig_r, use_container_width=True)
 
                 if table_ready and prt_tbl:
                     st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
                     st.table(styled)
-
-                st.markdown("</div>", unsafe_allow_html=True)
-                st.markdown("<br><br>", unsafe_allow_html=True)
+                st.markdown("</div><br><br>", unsafe_allow_html=True)
                 
-            components.html(
-                """
+            components.html("""
                 <style>
                 @media print {
                     @page { size: A3 landscape !important; margin: 10mm !important; }
-                    .main .block-container, .block-container { padding-top: 0 !important; margin-top: 0 !important; padding-left: 0 !important; padding-right: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 auto !important; }
-                    [data-testid="stAppViewContainer"] > section:nth-child(2) { padding-top: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 auto !important; }
-                    header[data-testid="stHeader"], header { display: none !important; }
-                    .stHorizontalBlock { justify-content: center !important; gap: 0rem !important; }
-                    [data-testid="column"] { padding: 0 15px !important; }
+                    .main .block-container, .block-container { padding: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 auto !important; }
+                    [data-testid="stAppViewContainer"] > section:nth-child(2) { padding: 0 !important; max-width: 100% !important; width: 100% !important; }
+                    header, header[data-testid="stHeader"] { display: none !important; }
                     #print-btn-container { display: none !important; }
                 }
                 </style>
                 <div id="print-btn-container" style="display: flex; justify-content: center; margin-top: 20px;">
-                    <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        🖨️ PDF 저장하기
-                    </button>
+                    <button onclick="printPreview()" style="background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ PDF 저장하기</button>
                 </div>
                 <script>
                 function printPreview() {
-                    var doc = window.parent.document;
-                    var marker = doc.getElementById('preview-marker');
-                    var hiddenElements = [];
+                    var doc = window.parent.document; var marker = doc.getElementById('preview-marker'); var hEls = [];
                     if (marker) {
                         var container = marker.closest('[data-testid="stElementContainer"]') || marker.closest('.element-container') || marker.parentNode;
-                        var sibling = container.previousElementSibling;
-                        while (sibling) {
-                            hiddenElements.push({el: sibling, orig: sibling.style.cssText || ''});
-                            sibling.style.setProperty('display', 'none', 'important');
-                            sibling = sibling.previousElementSibling;
-                        }
+                        var sib = container.previousElementSibling;
+                        while (sib) { hEls.push({el: sib, orig: sib.style.cssText}); sib.style.setProperty('display', 'none', 'important'); sib = sib.previousElementSibling; }
                     }
-                    var extras = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
-                    extras.forEach(el => {
-                        hiddenElements.push({el: el, orig: el.style.cssText || ''});
-                        el.style.setProperty('display', 'none', 'important');
-                    });
+                    var ex = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
+                    ex.forEach(el => { hEls.push({el: el, orig: el.style.cssText}); el.style.setProperty('display', 'none', 'important'); });
                     window.parent.print();
-                    setTimeout(() => {
-                        hiddenElements.forEach(item => { item.el.style.cssText = item.orig; });
-                    }, 1500);
+                    setTimeout(() => { hEls.forEach(item => { item.el.style.cssText = item.orig; }); }, 1500);
                 }
                 </script>
-                """,
-                height=80
-            )
+                """, height=80)
 
 # ─────────────────────────────────────────────────────────
 # 메인 실행
