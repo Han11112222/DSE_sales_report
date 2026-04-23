@@ -269,7 +269,6 @@ def render_monthly_trend(df, unit, prefix):
     # ─────────────────────────────────────────────────────────
     st.markdown("##### 📈 전체 용도별 구성비 추이 (타임시리즈)")
     
-    # [수정포인트] 좌측 상단에 구성비 표기 버튼 배치
     ts_col1, ts_col2 = st.columns([1, 3])
     with ts_col1:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
@@ -306,7 +305,7 @@ def render_monthly_trend(df, unit, prefix):
                     ))
             
             # [수정포인트] 활성화 시 3, 6, 9, 12월에 해당하는 위치에 세로 점선 및 큼직한 텍스트 추가
-            # add_vline 버그를 수정하기 위해Scatter Trace를 사용하여 점선을 직접 그리는 방식으로 변경
+            # 숫자를 맨 앞으로 도출하고 경계 하단에 배치
             if show_ts_ratio:
                 # 점선 그리기
                 for m_str in ts_ratio.index:
@@ -328,11 +327,12 @@ def render_monthly_trend(df, unit, prefix):
                         for grp in GROUP_ORDER:
                             val = ts_ratio.loc[m_str, grp]
                             if val >= 3.0:
-                                y_mid = cum_ratio.loc[m_str, grp] - val/2
+                                # [수정포인트] 텍스트 위치를 경계 하단으로 이동
+                                y_boundary_bottom = cum_ratio.loc[m_str, grp] - val/2
                                 ts_annotations.append(dict(
-                                    x=m_str, y=y_mid, xref='x', yref='y',
+                                    x=m_str, y=y_boundary_bottom, xref='x', yref='y',
                                     text=f"{val:.1f}%", showarrow=False, xanchor='center',
-                                    font=dict(size=15, color="#111") # [수정포인트] 글씨 크기 큼직하게 15pt
+                                    font=dict(size=18, color="white") # [수정포인트] 글씨 크기 큼직하게 18pt, 흰색
                                 ))
                 fig_ts.update_layout(annotations=ts_annotations)
 
@@ -387,7 +387,7 @@ def render_monthly_trend(df, unit, prefix):
                 val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
             else:
                 y_int = int(label[:4])
-                val = df[(df["그룹"] == grp) & (df["연"] == y_int) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
+                val = df[(df["그룹"] == grp) & (df["연"] == y_int) & (df["계획/실적"] == "실적")]["값"].sum()
             
             tot = annual_totals.get(label, 0)
             ratio = (val / tot * 100) if tot > 0 else 0
@@ -401,7 +401,8 @@ def render_monthly_trend(df, unit, prefix):
             marker_color=COLOR_MAP.get(grp, "#808080")
         ))
 
-    # [수정포인트] 주석(layout.annotations)을 활용하여 모든 텍스트를 산업용 수준인 큼직한 사이즈(14pt)로 통일하고 칸이 좁으면 우측으로 빼기
+    # [수정포인트] 주석(layout.annotations)을 활용하여 모든 텍스트를 산업용 수준인 큼직한 사이즈(23pt)로 통일하고 칸이 좁으면 우측으로 빼기
+    # 숫자를 그래프 중간에 위치하도록 정렬
     stack_annotations = []
     for i, label in enumerate(x_labels):
         cum_y = 0
@@ -410,18 +411,18 @@ def render_monthly_trend(df, unit, prefix):
             if val >= 1.0:
                 mid_y = cum_y + val / 2
                 if val >= 8.0:
-                    # 충분히 넓은 칸은 중앙 배치 (선 없음)
+                    # 충분히 넓은 칸은 중간 배치 (선 없음)
                     stack_annotations.append(dict(
                         x=label, y=mid_y, xref='x', yref='y',
                         text=f"{val:.1f}%", xanchor='center',
-                        showarrow=False, font=dict(size=14, color="white")
+                        showarrow=False, font=dict(size=23, color="white")
                     ))
                 else:
                     # 좁은 칸(업무용 등)은 우측 바깥으로 도출 (선 없이 깔끔하게 텍스트만)
                     stack_annotations.append(dict(
                         x=label, y=mid_y, xref='x', yref='y',
                         text=f"{val:.1f}%", xanchor='left', xshift=40,
-                        showarrow=False, font=dict(size=14, color="#333")
+                        showarrow=False, font=dict(size=23, color="#333")
                     ))
             cum_y += val
 
