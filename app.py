@@ -31,11 +31,11 @@ DEFAULT_SALES_XLSX = "판매량(계획_실적).xlsx"
 # 요청하신 그룹 순서
 GROUP_ORDER = ["가정용", "산업용", "업무용", "영업용", "기타"]
 
-# 차분하고 안정감 있는 색상으로 스택 컬러 맵핑
+# [수정포인트] 산업용과 업무용 색상 스왑
 COLOR_MAP = {
     "가정용": "#4c72b0",
-    "산업용": "#9ebcda",
-    "업무용": "#e07a5f",
+    "산업용": "#e07a5f",  # 기존 업무용 색상으로 변경
+    "업무용": "#9ebcda",  # 기존 산업용 색상으로 변경
     "영업용": "#e6c253",
     "기타": "#8cce8b"
 }
@@ -113,7 +113,7 @@ def render_monthly_trend(df, unit, prefix):
     
     c1, c2 = st.columns([3, 1])
     with c1: 
-        sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2024, 2025, 2026], key=f"{prefix}my")
+        sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2022, 2023, 2024, 2025, 2026], key=f"{prefix}my")
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["전체"] + GROUP_ORDER, selection_mode="single", default="전체", key=f"{prefix}sg")
@@ -266,44 +266,59 @@ def render_monthly_trend(df, unit, prefix):
 
 
     # ─────────────────────────────────────────────────────────
-    # [수정 영역] 타임 시리즈 그래프 (토글 제거)
+    # 타임 시리즈 그래프
     # ─────────────────────────────────────────────────────────
     st.markdown("##### 📈 전체 용도별 구성비 추이 (타임시리즈)")
     
-    ts_years = st.multiselect(
-        "타임 시리즈 연도 선택 (별도)", 
-        options=[2022, 2023, 2024, 2025, 2026], 
-        default=[2023, 2024, 2025, 2026], 
-        key=f"{prefix}_ts_years"
-    )
+    # [수정포인트] 타임시리즈 상단 우측에 "구성비 표기" 토글 추가
+    ts_col1, ts_col2 = st.columns([3, 1])
+    with ts_col1:
+        ts_years = st.multiselect(
+            "타임 시리즈 연도 선택 (별도)", 
+            options=[2022, 2023, 2024, 2025, 2026], 
+            default=[2023, 2024, 2025, 2026], 
+            key=f"{prefix}_ts_years"
+        )
+    with ts_col2:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        show_ts_ratio = st.toggle("구성비 표기", value=False, key=f"{prefix}_ts_ratio_toggle")
         
     if ts_years:
-        # 실적 데이터만 필터링 (현재 시점인 2026.03까지만 표출됨)
         ts_df = df[(df["연"].isin(ts_years)) & (df["계획/실적"] == "실적")].copy()
         
         if not ts_df.empty:
             fig_ts = go.Figure()
             
-            # X축: 전체 기간 (YYYY.MM) 연속 표출
             ts_df["년월"] = ts_df["연"].astype(str) + "." + ts_df["월"].astype(str).str.zfill(2)
             ts_grp_df = ts_df.groupby(["년월", "그룹"])["값"].sum().reset_index()
             
-            # 안전한 비율 계산을 위해 pivot 활용
             ts_pivot = ts_grp_df.pivot(index="년월", columns="그룹", values="값").fillna(0)
             ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
             
             for grp in GROUP_ORDER:
                 if grp in ts_ratio.columns:
-                    # shape='spline'과 stackgroup='one'으로 세련된 누적 면적 그래프 구현
+                    # [수정포인트] 토글 활성화 시 그래프 면적 경계에 텍스트 표기
+                    mode_str = 'lines+text' if show_ts_ratio else 'lines'
+                    text_arr = [f"{v:.1f}%" if v >= 3.0 else "" for v in ts_ratio[grp]] if show_ts_ratio else None
+                    
                     fig_ts.add_trace(go.Scatter(
-                        x=ts_ratio.index, y=ts_ratio[grp], mode='lines', name=grp,
+                        x=ts_ratio.index, y=ts_ratio[grp], mode=mode_str, name=grp,
                         line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
-                        stackgroup='one'
+                        stackgroup='one',
+                        text=text_arr,
+                        textposition='top center',
+                        textfont=dict(size=12, color="#333")
                     ))
-            fig_ts.update_layout(xaxis=dict(title="년월 (YYYY.MM)", type='category', tickangle=-45))
+            
+            # [수정포인트] 2026년이 포함되어 있다면 '2026.04' 카테고리를 강제 추가하여 빈 공간 확보
+            all_categories = list(ts_ratio.index)
+            if 2026 in ts_years and "2026.04" not in all_categories:
+                all_categories.append("2026.04")
+                
+            fig_ts.update_layout(xaxis=dict(title="년월 (YYYY.MM)", type='category', categoryorder='array', categoryarray=all_categories, tickangle=-45))
                 
             fig_ts.update_layout(
-                height=450,
+                height=540,
                 yaxis=dict(title="구성비 (%)", range=[0, 100], tickformat=".0f", ticksuffix="%"),
                 hovermode="x unified",
                 legend=dict(orientation="h", y=1.1)
@@ -348,7 +363,8 @@ def render_monthly_trend(df, unit, prefix):
             marker_color=COLOR_MAP.get(grp, "#808080"),
             text=[f"{v:.1f}%" if v >= 3.0 else "" for v in grp_y],
             textposition='inside',
-            insidetextanchor='middle'
+            insidetextanchor='middle',
+            textfont=dict(size=19)  # [수정포인트] 기존 대비 20% 추가 확대 (16 -> 19)
         ))
 
     fig_stack.update_layout(
