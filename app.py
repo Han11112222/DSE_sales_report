@@ -96,7 +96,6 @@ def load_data(excel_bytes):
     sheets = {name: xls.parse(name) for name in ["계획_부피", "실적_부피", "계획_열량", "실적_열량"] if name in xls.sheet_names}
     long_dict = {}
     
-    # 열량을 먼저 딕셔너리에 담아 첫 번째 탭으로 오게 순서 변경
     if "계획_열량" in sheets and "실적_열량" in sheets:
         long_dict["열량"] = make_long(sheets["계획_열량"], sheets["실적_열량"])
         
@@ -222,12 +221,8 @@ def render_monthly_trend(df, unit, prefix):
     )
     st.plotly_chart(fig_bar, use_container_width=True, key=f"{prefix}_main_fig_bar")
 
-    # ─────────────────────────────────────────────────────────
-    # [수정 영역] 연간 구성비 추이 그래프 (꺾은선) & 용도별 구성비 (스택그래프)
-    # ─────────────────────────────────────────────────────────
     st.markdown(f"##### 📈 {sel_group} 연간 구성비 추이 그래프")
     
-    # 월별 총합 계산 (비율 분모용)
     total_monthly = df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index(name="총합")
     ratio_line_df = plot_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
     ratio_line_df = pd.merge(ratio_line_df, total_monthly, on=["연", "월", "계획/실적"])
@@ -253,10 +248,8 @@ def render_monthly_trend(df, unit, prefix):
                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                 fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
 
-    # [수정포인트] Y축 구성비 범위를 데이터에 맞게 조정 (상하 구분 용이)
     if not ratio_line_df["비중"].empty:
         r_min, r_max = ratio_line_df["비중"].min(), ratio_line_df["비중"].max()
-        # 데이터가 0에 가깝거나 100에 가까울 때를 대비하여 적절한 버퍼 부여
         y_range = [max(0, r_min * 0.9), min(100, r_max * 1.1)]
     else:
         y_range = [0, 105]
@@ -269,6 +262,71 @@ def render_monthly_trend(df, unit, prefix):
         legend=dict(orientation="h", y=1.1)
     )
     st.plotly_chart(fig_ratio_line, use_container_width=True, key=f"{prefix}_main_fig_ratio_line")
+
+
+    # ─────────────────────────────────────────────────────────
+    # [추가 영역] 타임 시리즈 그래프 (스택 그래프 상단)
+    # ─────────────────────────────────────────────────────────
+    st.markdown("##### 📈 전체 용도별 판매량 추이 (타임시리즈)")
+    
+    ts_col1, ts_col2 = st.columns([3, 1])
+    with ts_col1:
+        ts_years = st.multiselect(
+            "타임 시리즈 연도 선택 (별도)", 
+            options=[2022, 2023, 2024, 2025, 2026], 
+            default=[2023, 2024, 2025, 2026], 
+            key=f"{prefix}_ts_years"
+        )
+    with ts_col2:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        ts_toggle = st.toggle("타임 시리즈 (연속 기간) 활성화", value=True, key=f"{prefix}_ts_toggle")
+        
+    if ts_years:
+        # 실적 데이터만 필터링 (현재 시점인 2026.03까지만 자연스럽게 표출됨)
+        ts_df = df[(df["연"].isin(ts_years)) & (df["계획/실적"] == "실적")].copy()
+        
+        if not ts_df.empty:
+            fig_ts = go.Figure()
+            
+            if ts_toggle:
+                # X축: 전체 기간 (YYYY.MM) 연속 표출
+                ts_df["년월"] = ts_df["연"].astype(str) + "." + ts_df["월"].astype(str).str.zfill(2)
+                ts_grp_df = ts_df.groupby(["년월", "그룹"])["값"].sum().reset_index()
+                ts_grp_df = ts_grp_df.sort_values("년월")
+                
+                for grp in GROUP_ORDER:
+                    g_df = ts_grp_df[ts_grp_df["그룹"] == grp]
+                    if not g_df.empty:
+                        fig_ts.add_trace(go.Scatter(
+                            x=g_df["년월"], y=g_df["값"], mode='markers+lines', name=grp,
+                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=2)
+                        ))
+                fig_ts.update_layout(xaxis=dict(title="년월 (YYYY.MM)", type='category', tickangle=-45))
+            else:
+                # X축: 1월~12월 변경 (선택된 연도의 월별 그룹 합산)
+                ts_grp_df = ts_df.groupby(["월", "그룹"])["값"].sum().reset_index()
+                ts_grp_df = ts_grp_df.sort_values("월")
+                
+                for grp in GROUP_ORDER:
+                    g_df = ts_grp_df[ts_grp_df["그룹"] == grp]
+                    if not g_df.empty:
+                        fig_ts.add_trace(go.Scatter(
+                            x=g_df["월"], y=g_df["값"], mode='markers+lines', name=grp,
+                            line=dict(color=COLOR_MAP.get(grp, "#000"), width=2)
+                        ))
+                fig_ts.update_layout(xaxis=dict(title="월", dtick=1))
+                
+            fig_ts.update_layout(
+                height=450,
+                yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"),
+                hovermode="x unified",
+                legend=dict(orientation="h", y=1.1)
+            )
+            st.plotly_chart(fig_ts, use_container_width=True, key=f"{prefix}_ts_main_chart")
+        else:
+            st.info("선택한 연도의 실적 데이터가 없습니다.")
+    # ─────────────────────────────────────────────────────────
+
 
     st.markdown(f"##### 📊 연간 용도별 구성비 (스택그래프)")
     fig_stack = go.Figure()
@@ -316,7 +374,6 @@ def render_monthly_trend(df, unit, prefix):
         legend=dict(orientation="h", y=1.1)
     )
     st.plotly_chart(fig_stack, use_container_width=True, key=f"{prefix}_main_fig_stack")
-    # ─────────────────────────────────────────────────────────
 
     c_tbl_1, c_tbl_2 = st.columns([3, 1])
     with c_tbl_1:
@@ -540,7 +597,6 @@ def render_monthly_trend(df, unit, prefix):
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
 
-                # [수정포인트] 미리보기 화면에서 구성비 추이 그래프를 윗쪽 내용과 완전히 분리하여 가로 전체 너비로 출력 (스택 그래프는 제거)
                 if prt_ratio:
                     p_ratio_line_df = p_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
                     p_ratio_line_df = pd.merge(p_ratio_line_df, total_monthly, on=["연", "월", "계획/실적"])
@@ -564,7 +620,6 @@ def render_monthly_trend(df, unit, prefix):
                                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                                 p_fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
                     
-                    # [수정포인트] Y축 구성비 상하값 구분 자동 조정
                     if not p_ratio_line_df["비중"].empty:
                         r_min, r_max = p_ratio_line_df["비중"].min(), p_ratio_line_df["비중"].max()
                         p_y_range = [max(0, r_min * 0.9), min(100, r_max * 1.1)]
@@ -579,11 +634,9 @@ def render_monthly_trend(df, unit, prefix):
                         legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center')
                     )
 
-                    # 여백(margin-top: 30px)을 주어 윗쪽 그래프와 시각적으로 분리
                     st.markdown(f"<div style='text-align: center; margin-top: 30px;'><b>■ [{print_grp}] 연간 구성비 추이 그래프</b></div>", unsafe_allow_html=True)
                     st.plotly_chart(p_fig_ratio_line, use_container_width=True, key=f"prt_ratio_line_chart_{prefix}_{print_grp}")
 
-                # [수정포인트] 미리보기 테이블 복구 및 유지
                 if table_ready and prt_tbl:
                     st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
                     st.table(styled)
