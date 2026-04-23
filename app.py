@@ -293,6 +293,10 @@ def render_monthly_trend(df, unit, prefix):
             ts_pivot = ts_grp_df.pivot(index="년월", columns="그룹", values="값").fillna(0)
             ts_ratio = ts_pivot.div(ts_pivot.sum(axis=1), axis=0).fillna(0) * 100
             
+            # [수정포인트] X축을 숫자형으로 매핑하여 곡선 흘러내림 방지 & 수직 컷팅 생성
+            x_numeric = np.arange(len(ts_ratio.index))
+            all_categories = list(ts_ratio.index)
+            
             for grp in GROUP_ORDER:
                 if grp in ts_ratio.columns:
                     mode_str = 'lines+text' if show_ts_ratio else 'lines'
@@ -300,7 +304,6 @@ def render_monthly_trend(df, unit, prefix):
                     if show_ts_ratio:
                         for m_str, v in zip(ts_ratio.index, ts_ratio[grp]):
                             month_val = int(m_str.split('.')[1])
-                            # 3, 6, 9, 12월에만 텍스트 표기
                             if month_val in [3, 6, 9, 12] and v >= 1.0:
                                 text_arr.append(f"{v:.1f}%")
                             else:
@@ -309,37 +312,43 @@ def render_monthly_trend(df, unit, prefix):
                         text_arr = None
                     
                     fig_ts.add_trace(go.Scatter(
-                        x=ts_ratio.index, y=ts_ratio[grp], mode=mode_str, name=grp,
+                        x=x_numeric, y=ts_ratio[grp], mode=mode_str, name=grp,
                         line=dict(color=COLOR_MAP.get(grp, "#000"), width=1.5, shape='spline'),
                         stackgroup='one',
                         fillcolor=COLOR_MAP.get(grp, "#000"),
                         text=text_arr,
-                        textposition='bottom center', # [수정] 경계 약간 하단으로 안착
-                        textfont=dict(size=18, color="white") # [수정] 색에 가려지지 않게 흰색, 글씨 크기 큼직하게 유지
+                        textposition='bottom center', 
+                        textfont=dict(size=18, color="white") 
                     ))
             
-            # Scatter를 사용하여 축 붕괴 에러 원천 차단 + 세로 점선 추가
+            # 점선 추가 로직도 숫자형 x축(i)에 맞춰서 설정
             if show_ts_ratio:
-                for m_str in ts_ratio.index:
+                for i, m_str in enumerate(ts_ratio.index):
                     if int(m_str.split('.')[1]) in [3, 6, 9, 12]:
                         fig_ts.add_trace(go.Scatter(
-                            x=[m_str, m_str], y=[0, 100], mode="lines",
+                            x=[i, i], y=[0, 100], mode="lines",
                             line=dict(color="rgba(100, 100, 100, 0.7)", width=1.5, dash="dash"),
                             showlegend=False, hoverinfo="skip"
                         ))
             
-            all_categories = list(ts_ratio.index)
+            # [수정포인트] 2026.04 라벨을 수동으로 축에 추가하여 빈 공란 확보
+            tickvals = list(range(len(all_categories)))
+            ticktext = list(all_categories)
+            range_end = len(all_categories) - 0.5
+            
             if 2026 in ts_years and "2026.04" not in all_categories:
-                all_categories.append("2026.04")
+                tickvals.append(len(all_categories))
+                ticktext.append("2026.04")
+                range_end = len(all_categories) + 0.5
                 
             fig_ts.update_layout(
                 xaxis=dict(
                     title="년월 (YYYY.MM)", 
-                    type='category', 
-                    categoryorder='array', 
-                    categoryarray=all_categories, 
-                    tickangle=-45,
-                    dtick=1 # 데이터가 생략되지 않고 모두 표기되도록 고정
+                    tickmode='array',
+                    tickvals=tickvals,
+                    ticktext=ticktext,
+                    range=[-0.5, range_end],
+                    tickangle=-45
                 )
             )
                 
@@ -385,7 +394,6 @@ def render_monthly_trend(df, unit, prefix):
             ratio = (val / tot * 100) if tot > 0 else 0
             ratios_dict[grp].append(ratio)
             
-        # 이중 텍스트 에러 및 지시선 제거를 위해 bar trace의 text 속성을 완전히 뺌
         fig_stack.add_trace(go.Bar(
             x=x_labels, 
             y=ratios_dict[grp], 
@@ -393,7 +401,6 @@ def render_monthly_trend(df, unit, prefix):
             marker_color=COLOR_MAP.get(grp, "#808080")
         ))
 
-    # [수정포인트] 모든 텍스트를 기존 크기(23pt)로 유지하며, 우측 쏠림 없이 항상 중앙 정렬(center) 적용
     stack_annotations = []
     for i, label in enumerate(x_labels):
         cum_y = 0
