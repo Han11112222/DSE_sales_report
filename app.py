@@ -253,10 +253,18 @@ def render_monthly_trend(df, unit, prefix):
                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                 fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
 
+    # [수정포인트] Y축 구성비 범위를 데이터에 맞게 조정 (상하 구분 용이)
+    if not ratio_line_df["비중"].empty:
+        r_min, r_max = ratio_line_df["비중"].min(), ratio_line_df["비중"].max()
+        # 데이터가 0에 가깝거나 100에 가까울 때를 대비하여 적절한 버퍼 부여
+        y_range = [max(0, r_min * 0.9), min(100, r_max * 1.1)]
+    else:
+        y_range = [0, 105]
+
     fig_ratio_line.update_layout(
         height=450, 
         xaxis=dict(dtick=1, title="월"), 
-        yaxis=dict(title="구성비 (%)", range=[0, 105], tickformat=".0f", ticksuffix="%"), 
+        yaxis=dict(title="구성비 (%)", range=y_range, tickformat=".1f", ticksuffix="%"), 
         hovermode="x unified", 
         legend=dict(orientation="h", y=1.1)
     )
@@ -265,7 +273,6 @@ def render_monthly_trend(df, unit, prefix):
     st.markdown(f"##### 📊 연간 용도별 구성비 (스택그래프)")
     fig_stack = go.Figure()
     
-    # [요청 반영] 2026년 계획 제외
     x_labels = []
     annual_totals = {}
     for year in sorted(sel_years):
@@ -328,7 +335,6 @@ def render_monthly_trend(df, unit, prefix):
             valid_mask = (table.index <= 3) & (table["2026년 계획"] != 0)
             table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / table.loc[valid_mask, "2026년 계획"]) * 100
             
-            # [수정 포인트] 화면 표출용 표의 합계 증감률 계산 시 1~3월 누적 계획만 분모로 사용
             ytd_plan_sum = table.loc[table.index <= 3, "2026년 계획"].sum()
 
         total_row = table.sum(numeric_only=True)
@@ -336,7 +342,6 @@ def render_monthly_trend(df, unit, prefix):
         
         if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
             val_diff = table.loc["합계", "증감량(차이)"]
-            # [수정 포인트] 전체 12개월 계획 합산이 아닌 ytd_plan_sum(1~3월 누적)으로 나누기
             table.loc["합계", "증감률(%)"] = (val_diff / ytd_plan_sum * 100) if ytd_plan_sum != 0 else np.nan
 
         table = table.reset_index()
@@ -475,17 +480,14 @@ def render_monthly_trend(df, unit, prefix):
                         p_table["증감률(%)"] = np.nan
                         valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
                         p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
-                        
-                        # [수정 포인트] 인쇄용 표의 합계 증감률 계산 시 1~3월 누적 계획만 분모로 사용
-                        ytd_plan_sum = p_table.loc[p_table.index <= 3, "2026년 계획"].sum()
+                        ytd_p_sum = p_table.loc[p_table.index <= 3, "2026년 계획"].sum()
 
                     total_row = p_table.sum(numeric_only=True)
                     p_table.loc["합계"] = total_row
 
                     if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
                         val_diff = p_table.loc["합계", "증감량(차이)"]
-                        # [수정 포인트] 전체 12개월 계획 합산이 아닌 ytd_plan_sum(1~3월 누적)으로 나누기
-                        p_table.loc["합계", "증감률(%)"] = (val_diff / ytd_plan_sum * 100) if ytd_plan_sum != 0 else np.nan
+                        p_table.loc["합계", "증감률(%)"] = (val_diff / ytd_p_sum * 100) if ytd_p_sum != 0 else np.nan
 
                     p_table = p_table.reset_index()
                     numeric_cols = [col for col in p_table.columns if col not in ["월", "증감률(%)"]]
@@ -513,10 +515,8 @@ def render_monthly_trend(df, unit, prefix):
                             p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                         else:
                             p_fig_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                        
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                         st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
-
                     with col_right:
                         p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
@@ -533,25 +533,17 @@ def render_monthly_trend(df, unit, prefix):
                                 p_fig_line.update_layout(height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", range=[y_min_s, y_max_s], tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             else:
                                 p_fig_line.update_layout(height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
-                            
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
                         elif prt_bar:
                             p_fig_bar.update_layout(barmode='group', bargap=0.36, height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
-                    
-                    with col_right:
-                        if table_ready and prt_tbl:
-                            st.markdown(f"<div style='text-align: center; width: 100%;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
-                            st.table(styled)
 
-                # 구성비 인쇄 영역 추가
                 if prt_ratio:
                     p_ratio_line_df = p_df.groupby(["연", "월", "계획/실적"])["값"].sum().reset_index()
                     p_ratio_line_df = pd.merge(p_ratio_line_df, total_monthly, on=["연", "월", "계획/실적"])
                     p_ratio_line_df["비중"] = np.where(p_ratio_line_df["총합"] > 0, (p_ratio_line_df["값"] / p_ratio_line_df["총합"]) * 100, 0)
-
                     p_fig_ratio_line = go.Figure()
                     for year in sorted(sel_years):
                         if year == 2026:
@@ -559,7 +551,6 @@ def render_monthly_trend(df, unit, prefix):
                             if not y26_plan_r.empty:
                                 c_plan = LINE_COLOR_MAP["2026년 계획"]
                                 p_fig_ratio_line.add_trace(go.Scatter(x=y26_plan_r["월"], y=y26_plan_r["비중"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
-                            
                             y26_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "실적") & (p_ratio_line_df["월"] <= 3)]
                             if not y26_act_r.empty:
                                 c_act26 = LINE_COLOR_MAP["2026년 실적"]
@@ -570,10 +561,9 @@ def render_monthly_trend(df, unit, prefix):
                                 key_name = f"{year}년 실적"
                                 c = LINE_COLOR_MAP.get(key_name, "#808080")
                                 p_fig_ratio_line.add_trace(go.Scatter(x=y_act_r["월"], y=y_act_r["비중"], mode='markers+lines', name=key_name, line=dict(color=c, width=2.5)))
-
+                    
                     p_fig_stack = go.Figure()
-                    p_x_labels = []
-                    p_annual_totals = {}
+                    p_x_labels, p_annual_totals = [], {}
                     for year in sorted(sel_years):
                         if year == 2026:
                             p_x_labels.append("2026년 실적")
@@ -582,7 +572,6 @@ def render_monthly_trend(df, unit, prefix):
                             label = f"{year}년 실적"
                             p_x_labels.append(label)
                             p_annual_totals[label] = df[(df["연"] == year) & (df["계획/실적"] == "실적")]["값"].sum()
-                            
                     for grp in GROUP_ORDER:
                         grp_y = []
                         for label in p_x_labels:
@@ -591,24 +580,13 @@ def render_monthly_trend(df, unit, prefix):
                             else:
                                 y_int = int(label[:4])
                                 val = df[(df["그룹"] == grp) & (df["연"] == y_int) & (df["계획/실적"] == "실적")]["값"].sum()
-                            
                             tot = p_annual_totals.get(label, 0)
-                            ratio = (val / tot * 100) if tot > 0 else 0
-                            grp_y.append(ratio)
-                            
-                        p_fig_stack.add_trace(go.Bar(
-                            x=p_x_labels, 
-                            y=grp_y, 
-                            name=grp, 
-                            marker_color=COLOR_MAP.get(grp, "#808080"),
-                            text=[f"{v:.1f}%" if v >= 3.0 else "" for v in grp_y],
-                            textposition='inside',
-                            insidetextanchor='middle'
-                        ))
+                            grp_y.append((val / tot * 100) if tot > 0 else 0)
+                        p_fig_stack.add_trace(go.Bar(x=p_x_labels, y=grp_y, name=grp, marker_color=COLOR_MAP.get(grp, "#808080"), text=[f"{v:.1f}%" if v >= 3.0 else "" for v in grp_y], textposition='inside'))
 
                     r_col1, r_col2 = st.columns(2)
                     with r_col1:
-                        p_fig_ratio_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title="구성비 (%)", range=[0, 105], tickformat=".0f", ticksuffix="%"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
+                        p_fig_ratio_line.update_layout(height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title="구성비 (%)", tickformat=".1f", ticksuffix="%"), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'))
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 구성비 추이 그래프</b></div>", unsafe_allow_html=True)
                         st.plotly_chart(p_fig_ratio_line, use_container_width=True, key=f"prt_ratio_line_chart_{prefix}_{print_grp}")
                     with r_col2:
@@ -616,7 +594,8 @@ def render_monthly_trend(df, unit, prefix):
                         st.markdown(f"<div style='text-align: center;'><b>■ 연간 용도별 구성비 (스택그래프)</b></div>", unsafe_allow_html=True)
                         st.plotly_chart(p_fig_stack, use_container_width=True, key=f"prt_ratio_stack_chart_{prefix}_{print_grp}")
 
-                if table_ready and prt_tbl and not (prt_line or prt_bar):
+                # [수정포인트] 미리보기 테이블 복구
+                if table_ready and prt_tbl:
                     st.markdown(f"<div style='text-align: center; width: 100%; margin-top: 20px;'><b>■ [{print_grp}] 월별 상세 데이터표</b></div>", unsafe_allow_html=True)
                     st.table(styled)
 
@@ -627,38 +606,13 @@ def render_monthly_trend(df, unit, prefix):
                 """
                 <style>
                 @media print {
-                    @page {
-                        size: A3 landscape !important;
-                        margin: 10mm !important;
-                    }
-                    .main .block-container, .block-container {
-                        padding-top: 0 !important;
-                        margin-top: 0 !important;
-                        padding-left: 0 !important;
-                        padding-right: 0 !important;
-                        max-width: 100% !important;
-                        width: 100% !important;
-                        margin: 0 auto !important;
-                    }
-                    [data-testid="stAppViewContainer"] > section:nth-child(2) {
-                        padding-top: 0 !important;
-                        max-width: 100% !important;
-                        width: 100% !important;
-                        margin: 0 auto !important;
-                    }
-                    header[data-testid="stHeader"], header {
-                        display: none !important;
-                    }
-                    .stHorizontalBlock {
-                        justify-content: center !important;
-                        gap: 0rem !important;
-                    }
-                    [data-testid="column"] {
-                        padding: 0 15px !important;
-                    }
-                    #print-btn-container {
-                        display: none !important;
-                    }
+                    @page { size: A3 landscape !important; margin: 10mm !important; }
+                    .main .block-container, .block-container { padding-top: 0 !important; margin-top: 0 !important; padding-left: 0 !important; padding-right: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 auto !important; }
+                    [data-testid="stAppViewContainer"] > section:nth-child(2) { padding-top: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 auto !important; }
+                    header[data-testid="stHeader"], header { display: none !important; }
+                    .stHorizontalBlock { justify-content: center !important; gap: 0rem !important; }
+                    [data-testid="column"] { padding: 0 15px !important; }
+                    #print-btn-container { display: none !important; }
                 }
                 </style>
                 <div id="print-btn-container" style="display: flex; justify-content: center; margin-top: 20px;">
@@ -671,7 +625,6 @@ def render_monthly_trend(df, unit, prefix):
                     var doc = window.parent.document;
                     var marker = doc.getElementById('preview-marker');
                     var hiddenElements = [];
-                    
                     if (marker) {
                         var container = marker.closest('[data-testid="stElementContainer"]') || marker.closest('.element-container') || marker.parentNode;
                         var sibling = container.previousElementSibling;
@@ -681,19 +634,14 @@ def render_monthly_trend(df, unit, prefix):
                             sibling = sibling.previousElementSibling;
                         }
                     }
-
                     var extras = doc.querySelectorAll('[data-testid="stSidebar"], header, [data-baseweb="tab-list"], h1');
                     extras.forEach(el => {
                         hiddenElements.push({el: el, orig: el.style.cssText || ''});
                         el.style.setProperty('display', 'none', 'important');
                     });
-
                     window.parent.print();
-
                     setTimeout(() => {
-                        hiddenElements.forEach(item => {
-                            item.el.style.cssText = item.orig;
-                        });
+                        hiddenElements.forEach(item => { item.el.style.cssText = item.orig; });
                     }, 1500);
                 }
                 </script>
@@ -709,7 +657,6 @@ def main():
     st.sidebar.header("📂 데이터 설정")
     src = st.sidebar.radio("데이터 소스", ["레포 파일 사용", "엑셀 업로드"])
     excel_bytes = None
-    
     if src == "엑셀 업로드":
         up = st.sidebar.file_uploader("판매량 엑셀 파일 업로드", type="xlsx")
         if up: excel_bytes = up.getvalue()
