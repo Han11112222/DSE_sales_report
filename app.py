@@ -408,7 +408,7 @@ def render_monthly_trend(df, unit, prefix):
                 stack_annotations.append(dict(
                     x=label, y=mid_y, xref='x', yref='y',
                     text=f"{val:.1f}%", xanchor='center', yanchor='middle',
-                    showarrow=False, font=dict(size=23, color="white")
+                    showarrow=False, font=dict(size=18, color="white")
                 ))
             cum_y += val
 
@@ -574,7 +574,6 @@ def render_monthly_trend(df, unit, prefix):
                             p_table_list.append(y_act_tb)
                             p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-                # 공유 Y축 범위 계산 [수정포인트]
                 shared_y_args = {}
                 if p_line_vals:
                     min_y, max_y = min(p_line_vals), max(p_line_vals)
@@ -610,7 +609,7 @@ def render_monthly_trend(df, unit, prefix):
                         format_dict["증감률(%)"] = "{:,.1f}%"
 
                     styled_df = p_table.style.format(format_dict, na_rep="")
-                    styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white; font-weight: bold;' if row['월'] == '합계' else '' for _ in row], axis=1)
+                    styled_df = styled_df.apply(lambda row: ['background-color: #1f497d; color: white;' if row['월'] == '합계' else '' for _ in row], axis=1)
                     
                     styled = center_style(styled_df)
                     try:
@@ -626,7 +625,6 @@ def render_monthly_trend(df, unit, prefix):
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                         st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_chart_{prefix}_{print_grp}")
                     with col_right:
-                        # [수정포인트] 막대 그래프에도 꺾은선 그래프와 완전히 동일한 Y축 범위를 적용
                         p_fig_bar.update_layout(barmode='group', bargap=0.36, height=450, xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", **shared_y_args), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                         st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                         st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_chart_{prefix}_{print_grp}")
@@ -639,7 +637,6 @@ def render_monthly_trend(df, unit, prefix):
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연간 추이 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_line, use_container_width=True, key=f"prt_line_single_side_{prefix}_{print_grp}")
                         elif prt_bar:
-                            # [수정포인트] 단독 출력 시에도 막대 그래프에 동일한 Y축 범위 적용
                             p_fig_bar.update_layout(barmode='group', bargap=0.36, height=550, margin=dict(l=10, r=0, t=40, b=10), xaxis=dict(dtick=1, title="월"), yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", **shared_y_args), hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center'), annotations=[unit_anno])
                             st.markdown(f"<div style='text-align: center;'><b>■ [{print_grp}] 연도별 동월 비교 그래프</b></div>", unsafe_allow_html=True)
                             st.plotly_chart(p_fig_bar, use_container_width=True, key=f"prt_bar_single_side_{prefix}_{print_grp}")
