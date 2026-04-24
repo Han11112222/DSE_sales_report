@@ -110,9 +110,13 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
+    # [수정포인트] 로그 스케일 토글 버튼 추가
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2022, 2023, 2024, 2025, 2026], key=f"{prefix}my")
+    with c2:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        use_log = st.toggle("🔍 하절기 확대 (로그스케일)", value=False, key=f"{prefix}_log")
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["전체"] + GROUP_ORDER, selection_mode="single", default="전체", key=f"{prefix}sg")
@@ -184,28 +188,25 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    if line_y_vals:
+    # [수정포인트] Y축 설정 로직에 로그 스케일 분기 추가
+    yaxis_dict = dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f")
+    if use_log:
+        yaxis_dict["type"] = "log"
+    elif line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
         y_min_scaled = min_y * 0.95 if min_y > 0 else min_y * 1.05
         y_max_scaled = max_y * 1.05
-        fig_line.update_layout(
-            height=550, 
-            xaxis=dict(dtick=1, title="월"), 
-            yaxis=dict(title=f"판매량({unit})", range=[y_min_scaled, y_max_scaled], tickformat=",.0f", hoverformat=",.0f"), 
-            hovermode="x unified", 
-            legend=dict(orientation="h", y=1.1),
-            annotations=[unit_anno]
-        )
-    else:
-        fig_line.update_layout(
-            height=550, 
-            xaxis=dict(dtick=1, title="월"), 
-            yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
-            hovermode="x unified", 
-            legend=dict(orientation="h", y=1.1),
-            annotations=[unit_anno]
-        )
+        yaxis_dict["range"] = [y_min_scaled, y_max_scaled]
+
+    fig_line.update_layout(
+        height=550, 
+        xaxis=dict(dtick=1, title="월"), 
+        yaxis=yaxis_dict, 
+        hovermode="x unified", 
+        legend=dict(orientation="h", y=1.1),
+        annotations=[unit_anno]
+    )
         
     st.plotly_chart(fig_line, use_container_width=True, key=f"{prefix}_main_fig_line")
 
@@ -213,8 +214,9 @@ def render_monthly_trend(df, unit, prefix):
     fig_bar.update_layout(
         barmode='group',
         bargap=0.36,
+        height=550, # 높이를 꺾은선과 동일하게 명시적 지정
         xaxis=dict(dtick=1, title="월"), 
-        yaxis=dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f"), 
+        yaxis=yaxis_dict, # 꺾은선과 완전히 동일한 yaxis 설정(로그스케일 및 range) 적용
         hovermode="x unified", 
         legend=dict(orientation="h", y=1.1),
         annotations=[unit_anno]
@@ -408,7 +410,7 @@ def render_monthly_trend(df, unit, prefix):
                 stack_annotations.append(dict(
                     x=label, y=mid_y, xref='x', yref='y',
                     text=f"{val:.1f}%", xanchor='center', yanchor='middle',
-                    showarrow=False, font=dict(size=18, color="white")
+                    showarrow=False, font=dict(size=23, color="white")
                 ))
             cum_y += val
 
@@ -470,7 +472,7 @@ def render_monthly_trend(df, unit, prefix):
     st.caption("항목과 그룹을 체크하고 버튼을 누르면 선택한 내용만 인쇄용 미리보기 화면에 나열됩니다.")
 
     st.markdown("##### 1. 출력 항목 선택")
-    chk_col1, chk_col2, chk_col3, chk_col4 = st.columns(4)
+    chk_col1, chk_col2, chk_col3, chk_col4, chk_col5 = st.columns(5) # [수정포인트] 토글 자리를 위해 5열로 변경
     with chk_col1:
         prt_line = st.checkbox("연간추이 그래프", value=True, key=f"{prefix}_prt_line")
     with chk_col2:
@@ -479,6 +481,8 @@ def render_monthly_trend(df, unit, prefix):
         prt_ratio = st.checkbox("전체 연간 구성비 추이 그래프", value=True, key=f"{prefix}_prt_ratio")
     with chk_col4:
         prt_tbl = st.checkbox("월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
+    with chk_col5:
+        prt_log = st.checkbox("🔍 인쇄용 그래프 하절기 확대 (로그스케일)", value=False, key=f"{prefix}_prt_log")
 
     st.markdown("##### 2. 출력 그룹 선택")
     grp_cols = st.columns(6)
@@ -574,8 +578,11 @@ def render_monthly_trend(df, unit, prefix):
                             p_table_list.append(y_act_tb)
                             p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
+                # [수정포인트] 인쇄 영역에도 로그스케일 적용 옵션 연동
                 shared_y_args = {}
-                if p_line_vals:
+                if prt_log:
+                    shared_y_args = {"type": "log"}
+                elif p_line_vals:
                     min_y, max_y = min(p_line_vals), max(p_line_vals)
                     y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
                     y_max_s = max_y * 1.05
