@@ -110,13 +110,13 @@ def load_data(excel_bytes):
 def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
-    # [수정포인트] 로그 스케일 토글 버튼 추가
     c1, c2 = st.columns([3, 1])
     with c1: 
         sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2022, 2023, 2024, 2025, 2026], key=f"{prefix}my")
     with c2:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        use_log = st.toggle("🔍 하절기 확대 (로그스케일)", value=False, key=f"{prefix}_log")
+        # [수정포인트] 토글 버튼 이름 변경
+        use_offset = st.toggle("🔍 하절기 확대 (Y축 보정)", value=False, key=f"{prefix}_offset")
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["전체"] + GROUP_ORDER, selection_mode="single", default="전체", key=f"{prefix}sg")
@@ -188,16 +188,22 @@ def render_monthly_trend(df, unit, prefix):
         showarrow=False
     )
 
-    # [수정포인트] Y축 설정 로직에 로그 스케일 분기 추가
+    # [수정포인트] Y축 설정 로직 교체 (로그 -> 오프셋)
     yaxis_dict = dict(title=f"판매량({unit})", tickformat=",.0f", hoverformat=",.0f")
-    if use_log:
-        yaxis_dict["type"] = "log"
-    elif line_y_vals:
+    if line_y_vals:
         min_y = min(line_y_vals)
         max_y = max(line_y_vals)
-        y_min_scaled = min_y * 0.95 if min_y > 0 else min_y * 1.05
-        y_max_scaled = max_y * 1.05
-        yaxis_dict["range"] = [y_min_scaled, y_max_scaled]
+        
+        if use_offset:
+            # Y축 시작점을 -1,000,000으로 설정 (단위가 천m³일 경우 스케일이 다르므로, 최대값 대비 비율로 적절한 하단 여백 생성)
+            # 데이터 왜곡을 방지하기 위해 최소값에 상관없이 일정한 음수 여백을 줌
+            y_min_scaled = -1000000 if unit == "GJ" else -25000 
+            y_max_scaled = max_y * 1.05
+            yaxis_dict["range"] = [y_min_scaled, y_max_scaled]
+        else:
+            y_min_scaled = min_y * 0.95 if min_y > 0 else min_y * 1.05
+            y_max_scaled = max_y * 1.05
+            yaxis_dict["range"] = [y_min_scaled, y_max_scaled]
 
     fig_line.update_layout(
         height=550, 
@@ -214,9 +220,9 @@ def render_monthly_trend(df, unit, prefix):
     fig_bar.update_layout(
         barmode='group',
         bargap=0.36,
-        height=550, # 높이를 꺾은선과 동일하게 명시적 지정
+        height=550,
         xaxis=dict(dtick=1, title="월"), 
-        yaxis=yaxis_dict, # 꺾은선과 완전히 동일한 yaxis 설정(로그스케일 및 range) 적용
+        yaxis=yaxis_dict, # 꺾은선과 완전히 동일한 yaxis 설정(오프셋) 적용
         hovermode="x unified", 
         legend=dict(orientation="h", y=1.1),
         annotations=[unit_anno]
@@ -472,7 +478,7 @@ def render_monthly_trend(df, unit, prefix):
     st.caption("항목과 그룹을 체크하고 버튼을 누르면 선택한 내용만 인쇄용 미리보기 화면에 나열됩니다.")
 
     st.markdown("##### 1. 출력 항목 선택")
-    chk_col1, chk_col2, chk_col3, chk_col4, chk_col5 = st.columns(5) # [수정포인트] 토글 자리를 위해 5열로 변경
+    chk_col1, chk_col2, chk_col3, chk_col4, chk_col5 = st.columns(5)
     with chk_col1:
         prt_line = st.checkbox("연간추이 그래프", value=True, key=f"{prefix}_prt_line")
     with chk_col2:
@@ -482,7 +488,8 @@ def render_monthly_trend(df, unit, prefix):
     with chk_col4:
         prt_tbl = st.checkbox("월별 상세 데이터표", value=True, key=f"{prefix}_prt_tbl")
     with chk_col5:
-        prt_log = st.checkbox("🔍 인쇄용 그래프 하절기 확대 (로그스케일)", value=False, key=f"{prefix}_prt_log")
+        # [수정포인트] 인쇄용 오프셋 토글 버튼 이름 변경
+        prt_log = st.checkbox("🔍 인쇄용 그래프 하절기 확대 (Y축 보정)", value=False, key=f"{prefix}_prt_log")
 
     st.markdown("##### 2. 출력 그룹 선택")
     grp_cols = st.columns(6)
@@ -578,15 +585,18 @@ def render_monthly_trend(df, unit, prefix):
                             p_table_list.append(y_act_tb)
                             p_fig_bar.add_trace(go.Bar(x=y_act_grp["월"], y=y_act_grp["값"], name=f"{year}년", marker_color=c))
 
-                # [수정포인트] 인쇄 영역에도 로그스케일 적용 옵션 연동
+                # [수정포인트] 인쇄 영역 오프셋 적용
                 shared_y_args = {}
-                if prt_log:
-                    shared_y_args = {"type": "log"}
-                elif p_line_vals:
+                if p_line_vals:
                     min_y, max_y = min(p_line_vals), max(p_line_vals)
-                    y_min_s = min_y * 0.95 if min_y > 0 else min_y * 1.05
-                    y_max_s = max_y * 1.05
-                    shared_y_args = {"range": [y_min_s, y_max_s]}
+                    if prt_log:
+                        y_min_scaled = -1000000 if unit == "GJ" else -25000
+                        y_max_scaled = max_y * 1.05
+                        shared_y_args = {"range": [y_min_scaled, y_max_scaled]}
+                    else:
+                        y_min_scaled = min_y * 0.95 if min_y > 0 else min_y * 1.05
+                        y_max_scaled = max_y * 1.05
+                        shared_y_args = {"range": [y_min_scaled, y_max_scaled]}
 
                 table_ready = False
                 styled = None
