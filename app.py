@@ -40,14 +40,13 @@ COLOR_MAP = {
     "기타": "#8cce8b"
 }
 
-# 고정 색상 맵핑 (2021년 및 2025년 계획 유동적 대응용 추가)
+# 고정 색상 맵핑
 LINE_COLOR_MAP = {
     "2021년 실적": "#7f7f7f",  
     "2022년 실적": "#808080",  
     "2023년 실적": "#9467bd",  # 보라색 (2022년 회색과 구분)
     "2024년 실적": "#1f77b4",  # 파란색
     "2025년 실적": "#2ca02c",  # 녹색
-    "2025년 계획": "#ff7f0e",  # 오렌지색
     "2026년 실적": "#d62728",  # 빨간색
     "2026년 계획": "#ff7f0e"   # 오렌지색
 }
@@ -92,7 +91,7 @@ def make_long(plan_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
     long_df = pd.concat(records, ignore_index=True).dropna(subset=["연", "월"])
     long_df["연"] = long_df["연"].astype(int)
     long_df["월"] = long_df["월"].astype(int)
-    return long_df[long_df["연"].isin(range(2021, 2027))]  # 2021년 실적 데이터가 정상 수집되도록 범위 확장
+    return long_df[long_df["연"].isin(range(2021, 2027))]
 
 def load_data(excel_bytes):
     xls = pd.ExcelFile(io.BytesIO(excel_bytes), engine="openpyxl")
@@ -110,7 +109,7 @@ def load_data(excel_bytes):
 # ─────────────────────────────────────────────────────────
 # 그래프 섹션: 연간 추이 그래프 (꺾은선 + 막대 + 데이터 박스)
 # ─────────────────────────────────────────────────────────
-def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_year):
+def render_monthly_trend(df, unit, prefix, target_years, default_ts_years):
     st.markdown("### 📈 연간 추이 그래프")
     
     c1, c2 = st.columns([3, 1])
@@ -135,31 +134,31 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
     line_y_vals = []
 
     for year in sorted(sel_years):
-        if year == last_year:
-            y_last_plan = plot_df[(plot_df["연"] == last_year) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
-            y_last_act = plot_df[(plot_df["연"] == last_year) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
+        if year == 2026:
+            y26_plan = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
+            y26_act = plot_df[(plot_df["연"] == 2026) & (plot_df["계획/실적"] == "실적") & (plot_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
             
-            if not y_last_plan.empty:
-                c_plan = LINE_COLOR_MAP.get(f"{last_year}년 계획", "#ff7f0e")
-                fig_line.add_trace(go.Scatter(x=y_last_plan["월"], y=y_last_plan["값"], mode='markers+lines', name=f"{last_year}년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
-                line_y_vals.extend(y_last_plan["값"].tolist())
+            if not y26_plan.empty:
+                c_plan = LINE_COLOR_MAP["2026년 계획"]
+                fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                line_y_vals.extend(y26_plan["값"].tolist())
                 
-                y_last_plan_tb = y_last_plan.copy()
-                y_last_plan_tb["표_컬럼"] = f"{last_year}년 계획"
-                table_data_list.append(y_last_plan_tb)
+                y26_plan_tb = y26_plan.copy()
+                y26_plan_tb["표_컬럼"] = "2026년 계획"
+                table_data_list.append(y26_plan_tb)
                 
-                fig_bar.add_trace(go.Bar(x=y_last_plan["월"], y=y_last_plan["값"], name=f"{last_year}년 계획", marker_color=c_plan))
+                fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
                 
-            if not y_last_act.empty:
-                c_act_last = LINE_COLOR_MAP.get(f"{last_year}년 실적", "#d62728")
-                fig_line.add_trace(go.Scatter(x=y_last_act["월"], y=y_last_act["값"], mode='markers+lines', name=f"{last_year}년 실적", line=dict(color=c_act_last, width=2.5)))
-                line_y_vals.extend(y_last_act["값"].tolist())
+            if not y26_act.empty:
+                c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                line_y_vals.extend(y26_act["값"].tolist())
                 
-                y_last_act_tb = y_last_act.copy()
-                y_last_act_tb["표_컬럼"] = f"{last_year}년 실적"
-                table_data_list.append(y_last_act_tb)
+                y26_act_tb = y26_act.copy()
+                y26_act_tb["표_컬럼"] = "2026년 실적"
+                table_data_list.append(y26_act_tb)
                 
-                fig_bar.add_trace(go.Bar(x=y_last_act["월"], y=y_last_act["값"], name=f"{last_year}년 실적", marker_color=c_act_last))
+                fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
 
         else:
             y_act = plot_df[(plot_df["연"] == year) & (plot_df["계획/실적"] == "실적")]
@@ -234,16 +233,16 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
     fig_ratio_line = go.Figure()
 
     for year in sorted(sel_years):
-        if year == last_year:
-            y_last_plan_r = ratio_line_df[(ratio_line_df["연"] == last_year) & (ratio_line_df["계획/실적"] == "계획")]
-            if not y_last_plan_r.empty:
-                c_plan = LINE_COLOR_MAP.get(f"{last_year}년 계획", "#ff7f0e")
-                fig_ratio_line.add_trace(go.Scatter(x=y_last_plan_r["월"], y=y_last_plan_r["비중"], mode='markers+lines', name=f"{last_year}년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+        if year == 2026:
+            y26_plan_r = ratio_line_df[(ratio_line_df["연"] == 2026) & (ratio_line_df["계획/실적"] == "계획")]
+            if not y26_plan_r.empty:
+                c_plan = LINE_COLOR_MAP["2026년 계획"]
+                fig_ratio_line.add_trace(go.Scatter(x=y26_plan_r["월"], y=y26_plan_r["비중"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
             
-            y_last_act_r = ratio_line_df[(ratio_line_df["연"] == last_year) & (ratio_line_df["계획/실적"] == "실적") & (ratio_line_df["월"] <= 3)]
-            if not y_last_act_r.empty:
-                c_act_last = LINE_COLOR_MAP.get(f"{last_year}년 실적", "#d62728")
-                fig_ratio_line.add_trace(go.Scatter(x=y_last_act_r["월"], y=y_last_act_r["비중"], mode='markers+lines', name=f"{last_year}년 실적", line=dict(color=c_act_last, width=2.5)))
+            y26_act_r = ratio_line_df[(ratio_line_df["연"] == 2026) & (ratio_line_df["계획/실적"] == "실적") & (ratio_line_df["월"] <= 3)]
+            if not y26_act_r.empty:
+                c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                fig_ratio_line.add_trace(go.Scatter(x=y26_act_r["월"], y=y26_act_r["비중"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
         else:
             y_act_r = ratio_line_df[(ratio_line_df["연"] == year) & (ratio_line_df["계획/실적"] == "실적")]
             if not y_act_r.empty:
@@ -336,9 +335,9 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
             ticktext = list(all_categories)
             range_end = len(all_categories) - 0.5
             
-            if last_year in ts_years and f"{last_year}.04" not in all_categories:
+            if 2026 in ts_years and "2026.04" not in all_categories:
                 tickvals.append(len(all_categories))
-                ticktext.append(f"{last_year}.04")
+                ticktext.append("2026.04")
                 range_end = len(all_categories) + 0.5
                 
             fig_ts.update_layout(
@@ -373,9 +372,9 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
     x_labels = []
     annual_totals = {}
     for year in sorted(sel_years):
-        if year == last_year:
-            x_labels.append(f"{last_year}년 실적")
-            annual_totals[f"{last_year}년 실적"] = df[(df["연"] == last_year) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
+        if year == 2026:
+            x_labels.append("2026년 실적")
+            annual_totals["2026년 실적"] = df[(df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
         else:
             label = f"{year}년 실적"
             x_labels.append(label)
@@ -384,8 +383,8 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
     ratios_dict = {grp: [] for grp in GROUP_ORDER}
     for grp in GROUP_ORDER:
         for label in x_labels:
-            if label == f"{last_year}년 실적":
-                val = df[(df["그룹"] == grp) & (df["연"] == last_year) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
+            if label == "2026년 실적":
+                val = df[(df["그룹"] == grp) & (df["연"] == 2026) & (df["계획/실적"] == "실적") & (df["월"] <= 3)]["값"].sum()
             else:
                 y_int = int(label[:4])
                 val = df[(df["그룹"] == grp) & (df["연"] == y_int) & (df["계획/실적"] == "실적")]["값"].sum()
@@ -437,19 +436,19 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
         t_df = pd.concat(table_data_list, ignore_index=True)
         table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
         
-        if f"{last_year}년 계획" in table.columns and f"{last_year}년 실적" in table.columns:
-            table["증감량(차이)"] = table[f"{last_year}년 실적"] - table[f"{last_year}년 계획"]
+        if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
+            table["증감량(차이)"] = table["2026년 실적"] - table["2026년 계획"]
             table.loc[table.index > 3, "증감량(차이)"] = np.nan
             table["증감률(%)"] = np.nan
-            valid_mask = (table.index <= 3) & (table[f"{last_year}년 계획"] != 0)
-            table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / table.loc[valid_mask, f"{last_year}년 계획"]) * 100
+            valid_mask = (table.index <= 3) & (table["2026년 계획"] != 0)
+            table.loc[valid_mask, "증감률(%)"] = (table.loc[valid_mask, "증감량(차이)"] / table.loc[valid_mask, "2026년 계획"]) * 100
             
-            ytd_plan_sum = table.loc[table.index <= 3, f"{last_year}년 계획"].sum()
+            ytd_plan_sum = table.loc[table.index <= 3, "2026년 계획"].sum()
 
         total_row = table.sum(numeric_only=True)
         table.loc["합계"] = total_row
         
-        if f"{last_year}년 계획" in table.columns and f"{last_year}년 실적" in table.columns:
+        if "2026년 계획" in table.columns and "2026년 실적" in table.columns:
             val_diff = table.loc["합계", "증감량(차이)"]
             table.loc["합계", "증감률(%)"] = (val_diff / ytd_plan_sum * 100) if ytd_plan_sum != 0 else np.nan
 
@@ -541,27 +540,27 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
                 p_line_vals = []
 
                 for year in sorted(sel_years):
-                    if year == last_year:
-                        y_last_plan = p_df[(p_df["연"] == last_year) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
-                        y_last_act = p_df[(p_df["연"] == last_year) & (p_df["계획/실적"] == "실적") & (p_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
+                    if year == 2026:
+                        y26_plan = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "계획")].groupby("월")["값"].sum().reset_index()
+                        y26_act = p_df[(p_df["연"] == 2026) & (p_df["계획/실적"] == "실적") & (p_df["월"] <= 3)].groupby("월")["값"].sum().reset_index()
 
-                        if not y_last_plan.empty:
-                            c_plan = LINE_COLOR_MAP.get(f"{last_year}년 계획", "#ff7f0e")
-                            p_fig_line.add_trace(go.Scatter(x=y_last_plan["월"], y=y_last_plan["값"], mode='markers+lines', name=f"{last_year}년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
-                            p_line_vals.extend(y_last_plan["값"].tolist())
-                            y_last_plan_tb = y_last_plan.copy()
-                            y_last_plan_tb["표_컬럼"] = f"{last_year}년 계획"
-                            p_table_list.append(y_last_plan_tb)
-                            p_fig_bar.add_trace(go.Bar(x=y_last_plan["월"], y=y_last_plan["값"], name=f"{last_year}년 계획", marker_color=c_plan))
+                        if not y26_plan.empty:
+                            c_plan = LINE_COLOR_MAP["2026년 계획"]
+                            p_fig_line.add_trace(go.Scatter(x=y26_plan["월"], y=y26_plan["값"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                            p_line_vals.extend(y26_plan["값"].tolist())
+                            y26_plan_tb = y26_plan.copy()
+                            y26_plan_tb["표_컬럼"] = "2026년 계획"
+                            p_table_list.append(y26_plan_tb)
+                            p_fig_bar.add_trace(go.Bar(x=y26_plan["월"], y=y26_plan["값"], name="2026년 계획", marker_color=c_plan))
 
-                        if not y_last_act.empty:
-                            c_act_last = LINE_COLOR_MAP.get(f"{last_year}년 실적", "#d62728")
-                            p_fig_line.add_trace(go.Scatter(x=y_last_act["월"], y=y_last_act["값"], mode='markers+lines', name=f"{last_year}년 실적", line=dict(color=c_act_last, width=2.5)))
-                            p_line_vals.extend(y_last_act["값"].tolist())
-                            y_last_act_tb = y_last_act.copy()
-                            y_last_act_tb["표_컬럼"] = f"{last_year}년 실적"
-                            p_table_list.append(y_last_act_tb)
-                            p_fig_bar.add_trace(go.Bar(x=y_last_act["월"], y=y_last_act["값"], name=f"{last_year}년 실적", marker_color=c_act_last))
+                        if not y26_act.empty:
+                            c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                            p_fig_line.add_trace(go.Scatter(x=y26_act["월"], y=y26_act["값"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
+                            p_line_vals.extend(y26_act["값"].tolist())
+                            y26_act_tb = y26_act.copy()
+                            y26_act_tb["표_컬럼"] = "2026년 실적"
+                            p_table_list.append(y26_act_tb)
+                            p_fig_bar.add_trace(go.Bar(x=y26_act["월"], y=y26_act["값"], name="2026년 실적", marker_color=c_act26))
 
                     else:
                         y_act = p_df[(p_df["연"] == year) & (p_df["계획/실적"] == "실적")]
@@ -590,18 +589,18 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
                     t_df = pd.concat(p_table_list, ignore_index=True)
                     p_table = t_df.pivot_table(index="월", columns="표_컬럼", values="값", aggfunc="sum").sort_index().fillna(0.0)
 
-                    if f"{last_year}년 계획" in p_table.columns and f"{last_year}년 실적" in p_table.columns:
-                        p_table["증감량(차이)"] = p_table[f"{last_year}년 실적"] - p_table[f"{last_year}년 계획"]
+                    if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
+                        p_table["증감량(차이)"] = p_table["2026년 실적"] - p_table["2026년 계획"]
                         p_table.loc[p_table.index > 3, "증감량(차이)"] = np.nan
                         p_table["증감률(%)"] = np.nan
-                        valid_mask = (p_table.index <= 3) & (p_table[f"{last_year}년 계획"] != 0)
-                        p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, f"{last_year}년 계획"]) * 100
-                        ytd_p_sum = p_table.loc[p_table.index <= 3, f"{last_year}년 계획"].sum()
+                        valid_mask = (p_table.index <= 3) & (p_table["2026년 계획"] != 0)
+                        p_table.loc[valid_mask, "증감률(%)"] = (p_table.loc[valid_mask, "증감량(차이)"] / p_table.loc[valid_mask, "2026년 계획"]) * 100
+                        ytd_p_sum = p_table.loc[p_table.index <= 3, "2026년 계획"].sum()
 
                     total_row = p_table.sum(numeric_only=True)
                     p_table.loc["합계"] = total_row
 
-                    if f"{last_year}년 계획" in p_table.columns and f"{last_year}년 실적" in p_table.columns:
+                    if "2026년 계획" in p_table.columns and "2026년 실적" in p_table.columns:
                         val_diff = p_table.loc["합계", "증감량(차이)"]
                         p_table.loc["합계", "증감률(%)"] = (val_diff / ytd_p_sum * 100) if ytd_p_sum != 0 else np.nan
 
@@ -651,15 +650,15 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years, last_
                     
                     p_fig_ratio_line = go.Figure()
                     for year in sorted(sel_years):
-                        if year == last_year:
-                            y_last_plan_r = p_ratio_line_df[(p_ratio_line_df["연"] == last_year) & (p_ratio_line_df["계획/실적"] == "계획")]
-                            if not y_last_plan_r.empty:
-                                c_plan = LINE_COLOR_MAP.get(f"{last_year}년 계획", "#ff7f0e")
-                                p_fig_ratio_line.add_trace(go.Scatter(x=y_last_plan_r["월"], y=y_last_plan_r["비중"], mode='markers+lines', name=f"{last_year}년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
-                            y_last_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == last_year) & (p_ratio_line_df["계획/실적"] == "실적") & (p_ratio_line_df["월"] <= 3)]
-                            if not y_last_act_r.empty:
-                                c_act_last = LINE_COLOR_MAP.get(f"{last_year}년 실적", "#d62728")
-                                p_fig_ratio_line.add_trace(go.Scatter(x=y_last_act_r["월"], y=y_last_act_r["비중"], mode='markers+lines', name=f"{last_year}년 실적", line=dict(color=c_act_last, width=2.5)))
+                        if year == 2026:
+                            y26_plan_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "계획")]
+                            if not y26_plan_r.empty:
+                                c_plan = LINE_COLOR_MAP["2026년 계획"]
+                                p_fig_ratio_line.add_trace(go.Scatter(x=y26_plan_r["월"], y=y26_plan_r["비중"], mode='markers+lines', name="2026년 계획", line=dict(color=c_plan, width=2.5, dash='dot')))
+                            y26_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == 2026) & (p_ratio_line_df["계획/실적"] == "실적") & (p_ratio_line_df["월"] <= 3)]
+                            if not y26_act_r.empty:
+                                c_act26 = LINE_COLOR_MAP["2026년 실적"]
+                                p_fig_ratio_line.add_trace(go.Scatter(x=y26_act_r["월"], y=y26_act_r["비중"], mode='markers+lines', name="2026년 실적", line=dict(color=c_act26, width=2.5)))
                         else:
                             y_act_r = p_ratio_line_df[(p_ratio_line_df["연"] == year) & (p_ratio_line_df["계획/실적"] == "실적")]
                             if not y_act_r.empty:
@@ -745,18 +744,14 @@ def main():
     st.title("📊 DSE 판매량 분석 보고")
     st.sidebar.header("📂 데이터 설정")
     
-    # 좌측 탭 모드로 선택할 수 있는 라디오 위젯 추가 및 기본 인덱스 설정
     report_mode = st.sidebar.radio("보고 모드", ["for 추경호 보고용", "일반 보고용"], index=0)
     
-    # 보고 모드 조건에 따라 타겟 연도 및 마진 연도(실적+계획 비교 연도) 정의
     if report_mode == "for 추경호 보고용":
         target_years = [2021, 2022, 2023, 2024, 2025]
         default_ts_years = [2022, 2023, 2024, 2025]
-        last_year = 2025
     else:
         target_years = [2022, 2023, 2024, 2025, 2026]
         default_ts_years = [2023, 2024, 2025, 2026]
-        last_year = 2026
 
     src = st.sidebar.radio("데이터 소스", ["레포 파일 사용", "엑셀 업로드"])
     excel_bytes = None
@@ -773,8 +768,7 @@ def main():
         for (k, df), tab in zip(data_dict.items(), tabs):
             with tab:
                 unit = "천m³" if k == "부피" else "GJ"
-                # 변경된 연도 설정 변수들을 렌더링 함수에 주입합니다.
-                render_monthly_trend(df, unit, k, target_years, default_ts_years, last_year)
+                render_monthly_trend(df, unit, k, target_years, default_ts_years)
     else:
         st.warning("데이터 파일을 로드할 수 없습니다.")
 
