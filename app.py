@@ -42,8 +42,6 @@ COLOR_MAP = {
 
 # 고정 색상 맵핑
 LINE_COLOR_MAP = {
-    "2021년 실적": "#7f7f7f",  
-    "2022년 실적": "#808080",  
     "2023년 실적": "#9467bd",  # 보라색 (2022년 회색과 구분)
     "2024년 실적": "#1f77b4",  # 파란색
     "2025년 실적": "#2ca02c",  # 녹색
@@ -91,7 +89,7 @@ def make_long(plan_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
     long_df = pd.concat(records, ignore_index=True).dropna(subset=["연", "월"])
     long_df["연"] = long_df["연"].astype(int)
     long_df["월"] = long_df["월"].astype(int)
-    return long_df[long_df["연"].isin(range(2021, 2027))]
+    return long_df[long_df["연"].isin(range(2022, 2027))]
 
 def load_data(excel_bytes):
     xls = pd.ExcelFile(io.BytesIO(excel_bytes), engine="openpyxl")
@@ -109,12 +107,12 @@ def load_data(excel_bytes):
 # ─────────────────────────────────────────────────────────
 # 그래프 섹션: 연간 추이 그래프 (꺾은선 + 막대 + 데이터 박스)
 # ─────────────────────────────────────────────────────────
-def render_monthly_trend(df, unit, prefix, target_years, default_ts_years):
+def render_monthly_trend(df, unit, prefix):
     st.markdown("### 📈 연간 추이 그래프")
     
     c1, c2 = st.columns([3, 1])
     with c1: 
-        sel_years = st.multiselect("연도 선택(그래프)", options=target_years, default=target_years, key=f"{prefix}my")
+        sel_years = st.multiselect("연도 선택(그래프)", options=[2022, 2023, 2024, 2025, 2026], default=[2022, 2023, 2024, 2025, 2026], key=f"{prefix}my")
 
     try:
         sel_group = st.segmented_control("그룹 선택", options=["전체"] + GROUP_ORDER, selection_mode="single", default="전체", key=f"{prefix}sg")
@@ -278,8 +276,8 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years):
     with ts_col2:
         ts_years = st.multiselect(
             "타임 시리즈 연도 선택 (별도)", 
-            options=target_years, 
-            default=default_ts_years, 
+            options=[2022, 2023, 2024, 2025, 2026], 
+            default=[2023, 2024, 2025, 2026], 
             key=f"{prefix}_ts_years"
         )
         
@@ -743,16 +741,6 @@ def render_monthly_trend(df, unit, prefix, target_years, default_ts_years):
 def main():
     st.title("📊 DSE 판매량 분석 보고")
     st.sidebar.header("📂 데이터 설정")
-    
-    report_mode = st.sidebar.radio("보고 모드", ["for 추경호 보고용", "일반 보고용"], index=0)
-    
-    if report_mode == "for 추경호 보고용":
-        target_years = [2021, 2022, 2023, 2024, 2025]
-        default_ts_years = [2022, 2023, 2024, 2025]
-    else:
-        target_years = [2022, 2023, 2024, 2025, 2026]
-        default_ts_years = [2023, 2024, 2025, 2026]
-
     src = st.sidebar.radio("데이터 소스", ["레포 파일 사용", "엑셀 업로드"])
     excel_bytes = None
     if src == "엑셀 업로드":
@@ -768,7 +756,7 @@ def main():
         for (k, df), tab in zip(data_dict.items(), tabs):
             with tab:
                 unit = "천m³" if k == "부피" else "GJ"
-                render_monthly_trend(df, unit, k, target_years, default_ts_years)
+                render_monthly_trend(df, unit, k)
     else:
         st.warning("데이터 파일을 로드할 수 없습니다.")
 
